@@ -335,7 +335,7 @@ dlg:button {
                 palette:setColor(2, Color { r = 255, g = 255, b = 255, a = 255 })
             end)
         else
-            app.command.ColorQuantization { ui = false, maxColors = 255 }
+            app.command.ColorQuantization { ui = false, maxColors = 256 }
         end
 
         local colorMode = args.colorMode or defaults.colorMode --[[@as string]]
