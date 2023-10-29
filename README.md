@@ -30,7 +30,7 @@ When the color maximum is reduced, the script performs *no* dithering, unlike GI
 
 Aseprite's definition of "luma" to convert to grayscale is used by both `pbm` and `pgm` exports. `pbm` grayscale values are then thresholded.
 
-This dialog's parser expects the header, image dimensions, max channel and pixel data to be separated by line breaks. In other words, one liner files should not expect to parse correctly.
+This dialog's parser expects the header, image dimensions, max channel and pixel data to be separated by line breaks. In other words, don't expect one liner files to parse correctly.
 
 ## Modification
 

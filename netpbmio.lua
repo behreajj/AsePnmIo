@@ -175,7 +175,7 @@ dlg:button {
 
                     if lenWhTokens > 2 then
                         channelMaxFound = charCount
-                        local channelMaxPrs = tonumber(lc, 10)
+                        local channelMaxPrs = tonumber(whTokens[3], 10)
                         if channelMaxPrs then
                             channelMax = min(max(floor(abs(channelMaxPrs) + 0.5), 1), 255)
                             fromChnlSz = 255.0 / channelMax
