@@ -10,7 +10,7 @@ local defaults = {
     colorMode = "RGB",
 }
 
-local dlg = Dialog { title = "NetPbm Import Export" }
+local dlg = Dialog { title = "PNM Import Export" }
 
 dlg:combobox {
     id = "colorMode",
