@@ -22,7 +22,7 @@ If an error message in Aseprite's console appears, check if the script folder is
 
 A hot key can be assigned to the script by going to `Edit > Keyboard Shortcuts`. The search input box in the top left of the shortcuts dialog can be used to locate the script by its file name. The dialog can be closed with `Alt+C`. The import button can be activated with `Alt+I`; export, with `Alt+E`.
 
-Import and export ignore alpha *completely*. (For example, not even transparent red, `0x000000ff`, will be corrected to transparent black, `0x00000000`.) I recommend that you set an opaque background layer if you want to avoid issues.
+Import and export ignore alpha *completely*. (For example transparent red, `0x000000ff`, will not be corrected to opaque black, `0xff000000`.) I recommend that you set an opaque background layer if you want to avoid issues.
 
 The Netpbm file format supports neither layers nor frames. For that reason, a flattened copy of the sprite is made at the active frame.
 
@@ -31,6 +31,122 @@ When the color maximum is reduced, the script performs *no* dithering, unlike GI
 Aseprite's definition of "luma" to convert to grayscale is used by both `pbm` and `pgm` exports. `pbm` grayscale values are then thresholded.
 
 This dialog's parser expects the header, image dimensions, max channel and pixel data to be separated by line breaks. In other words, don't expect one liner files to parse correctly.
+
+## Example
+
+### PPM
+
+Below is an example output for a 9 by 16 ppm file, upscaled to 90 by 160:
+
+![Example 1](example1.png)
+
+In a text editor, the ASCII version looks like this:
+
+```
+P3
+9 16
+255
+220 058 058 182 037 079 151 028 090 137 036 105 132 038 109 137 036 105 151 028 090 182 037 079 220 058 058
+142 033 100 104 047 120 081 064 143 057 078 153 045 082 155 057 078 153 081 064 143 104 047 120 142 033 100
+081 064 143 000 094 156 000 109 156 000 118 156 000 122 155 000 118 156 000 109 156 000 094 156 081 064 143
+000 103 156 000 126 155 000 143 149 000 152 133 000 154 126 000 152 133 000 143 149 000 126 155 000 103 156
+000 129 154 000 152 133 042 171 096 115 190 069 138 196 059 115 190 069 042 171 096 000 152 133 000 129 154
+000 149 140 065 178 089 166 207 048 213 219 027 227 220 025 213 219 027 166 207 048 065 178 089 000 149 140
+000 157 107 151 201 054 227 220 025 255 199 017 255 179 018 255 199 017 227 220 025 151 201 054 000 157 107
+042 171 096 181 212 041 254 217 023 252 151 028 238 103 044 252 151 028 254 217 023 181 212 041 042 171 096
+042 171 096 181 212 041 254 217 023 252 151 028 238 103 044 252 151 028 254 217 023 181 212 041 042 171 096
+000 157 107 151 201 054 227 220 025 255 199 017 255 179 018 255 199 017 227 220 025 151 201 054 000 157 107
+000 149 140 065 178 089 166 207 048 213 219 027 227 220 025 213 219 027 166 207 048 065 178 089 000 149 140
+000 129 154 000 152 133 042 171 096 115 190 069 138 196 059 115 190 069 042 171 096 000 152 133 000 129 154
+000 103 156 000 126 155 000 143 149 000 152 133 000 154 126 000 152 133 000 143 149 000 126 155 000 103 156
+081 064 143 000 094 156 000 109 156 000 118 156 000 122 155 000 118 156 000 109 156 000 094 156 081 064 143
+142 033 100 104 047 120 081 064 143 057 078 153 045 082 155 057 078 153 081 064 143 104 047 120 142 033 100
+220 058 058 182 037 079 151 028 090 137 036 105 132 038 109 137 036 105 151 028 090 182 037 079 220 058 058
+```
+
+In a hex editor, the binary version looks like this:
+
+```
+50 36 0A 39 20 31 36 0A 32 35 35 0A
+DC 3A 3A B6 25 4F 97 1C 5A 89 24 69
+84 26 6D 89 24 69 97 1C 5A B6 25 4F
+DC 3A 3A 8E 21 64 68 2F 78 51 40 8F
+39 4E 99 2D 52 9B 39 4E 99 51 40 8F
+68 2F 78 8E 21 64 51 40 8F 00 5E 9C
+00 6D 9C 00 76 9C 00 7A 9B 00 76 9C
+00 6D 9C 00 5E 9C 51 40 8F 00 67 9C
+00 7E 9B 00 8F 95 00 98 85 00 9A 7E
+00 98 85 00 8F 95 00 7E 9B 00 67 9C
+00 81 9A 00 98 85 2A AB 60 73 BE 45
+8A C4 3B 73 BE 45 2A AB 60 00 98 85
+00 81 9A 00 95 8C 41 B2 59 A6 CF 30
+D5 DB 1B E3 DC 19 D5 DB 1B A6 CF 30
+41 B2 59 00 95 8C 00 9D 6B 97 C9 36
+E3 DC 19 FF C7 11 FF B3 12 FF C7 11
+E3 DC 19 97 C9 36 00 9D 6B 2A AB 60
+B5 D4 29 FE D9 17 FC 97 1C EE 67 2C
+FC 97 1C FE D9 17 B5 D4 29 2A AB 60
+2A AB 60 B5 D4 29 FE D9 17 FC 97 1C
+EE 67 2C FC 97 1C FE D9 17 B5 D4 29
+2A AB 60 00 9D 6B 97 C9 36 E3 DC 19
+FF C7 11 FF B3 12 FF C7 11 E3 DC 19
+97 C9 36 00 9D 6B 00 95 8C 41 B2 59
+A6 CF 30 D5 DB 1B E3 DC 19 D5 DB 1B
+A6 CF 30 41 B2 59 00 95 8C 00 81 9A
+00 98 85 2A AB 60 73 BE 45 8A C4 3B
+73 BE 45 2A AB 60 00 98 85 00 81 9A
+00 67 9C 00 7E 9B 00 8F 95 00 98 85
+00 9A 7E 00 98 85 00 8F 95 00 7E 9B
+00 67 9C 51 40 8F 00 5E 9C 00 6D 9C
+00 76 9C 00 7A 9B 00 76 9C 00 6D 9C
+00 5E 9C 51 40 8F 8E 21 64 68 2F 78
+51 40 8F 39 4E 99 2D 52 9B 39 4E 99
+51 40 8F 68 2F 78 8E 21 64 DC 3A 3A
+B6 25 4F 97 1C 5A 89 24 69 84 26 6D
+89 24 69 97 1C 5A B6 25 4F DC 3A 3A
+```
+
+The pixel in the top left corner can be seen as `220` for the red channel, `58` for the green and `58` for the blue. Or, in hexadecimal: `0xDC`, `0x3A`, `0x3A`.
+
+### PBM
+
+Below is from the same source image as above, but exported as a pbm:
+
+![Example 2](example2.png)
+
+The ASCII version looks like this:
+
+```
+P1
+9 16
+1 1 1 1 1 1 1 1 1
+1 1 1 1 1 1 1 1 1
+1 1 1 1 1 1 1 1 1
+1 1 1 1 1 1 1 1 1
+1 1 0 0 0 0 0 1 1
+1 0 0 0 0 0 0 0 1
+1 0 0 0 0 0 0 0 1
+0 0 0 0 1 0 0 0 0
+0 0 0 0 1 0 0 0 0
+1 0 0 0 0 0 0 0 1
+1 0 0 0 0 0 0 0 1
+1 1 0 0 0 0 0 1 1
+1 1 1 1 1 1 1 1 1
+1 1 1 1 1 1 1 1 1
+1 1 1 1 1 1 1 1 1
+1 1 1 1 1 1 1 1 1
+```
+
+The binary version looks like this:
+
+```
+50 34 0A 39 20 31 36 0A FF FF FF FF
+FF FF FF FF C1 FF 80 FF 80 FF 08 7F
+08 7F 80 FF 80 FF C1 FF FF FF FF FF
+FF FF FF FF
+```
+
+Binary pbms pack 8 pixels of binary data into one byte, with extra padding depending on the image width.
 
 ## Modification
 
