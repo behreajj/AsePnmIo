@@ -1,8 +1,8 @@
-# Aseprite Netpbm
+# Aseprite PNM
 
 ![Screen Cap](screenCap.png)
 
-This is a [Netpbm](https://en.wikipedia.org/wiki/Netpbm) import-export dialog for use with the [Aseprite](https://www.aseprite.org/) [scripting API](https://www.aseprite.org/docs/scripting/). The Netpbm family of image formats supported by this dialog are `pbm`, `pgm` and `ppm`.
+This is a [PNM](https://en.wikipedia.org/wiki/Netpbm) import-export dialog for use with the [Aseprite](https://www.aseprite.org/) [scripting API](https://www.aseprite.org/docs/scripting/). The PNM family of image formats supported by this dialog are `pbm`, `pgm` and `ppm`.
 
 - `ppm` files support up to 256-bit per red, green and blue color channels. Alpha is not included. The maximum per each channel can be adjusted, effectively allowing for a reduced bit-depth image. For example, a max of `7` would be `(1<<3)-1` or `(2^3)-1`.
 - `pgm` files support up to 256-bit per gray channel. Alpha is not included. The maximum per channel can be adjusted.
@@ -38,4 +38,4 @@ To modify these scripts, see Aseprite's [API Reference](https://github.com/asepr
 
 ## Issues
 
-This script was tested in Aseprite version 1.2.40-x64 on Windows 10. Its user interface elements were tested with 100% screen scaling and 200% UI scaling. Please report issues in the [Issues](https://github.com/behreajj/AseNetPbmIo/issues) section on Github. The script was compared with the import-export capabilities of [GIMP](https://www.gimp.org/) version 2.10.34 and [Krita](https://krita.org/) version 5.2.0. 
+This script was tested in Aseprite version 1.2.40-x64 on Windows 10. Its user interface elements were tested with 100% screen scaling and 200% UI scaling. Please report issues in the issues section on Github. The script was compared with the import-export capabilities of [GIMP](https://www.gimp.org/) version 2.10.34 and [Krita](https://krita.org/) version 5.2.0. 
