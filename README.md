@@ -22,7 +22,7 @@ If an error message in Aseprite's console appears, check if the script folder is
 
 A hot key can be assigned to the script by going to `Edit > Keyboard Shortcuts`. The search input box in the top left of the shortcuts dialog can be used to locate the script by its file name. The dialog can be closed with `Alt+C`. The import button can be activated with `Alt+I`; export, with `Alt+E`.
 
-Import and export ignore alpha completely rather than try to guess at your intentions. I recommend that you set an opaque background layer if you want to avoid an opaque black.
+Import and export ignore alpha *completely*. (For example, not even transparent red, `0x000000ff`, will be corrected to transparent black, `0x00000000`.) I recommend that you set an opaque background layer if you want to avoid issues.
 
 The Netpbm file format supports neither layers nor frames. For that reason, a flattened copy of the sprite is made at the active frame.
 
