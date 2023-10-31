@@ -25,14 +25,16 @@ local function parseRangeString(s, frameCount, offset)
     local min = math.min
     local max = math.max
 
+    ---@type table<integer, boolean>
+    local uniqueDict = {}
+
     -- Parse string by comma.
-    ---@type integer[]
-    local arr = {}
     for token in strgmatch(s, "([^,]+)") do
-        -- Parse string by colon.
         ---@type integer[]
         local edges = {}
         local idxEdges = 0
+
+        -- Parse string by colon.
         for subtoken in strgmatch(token, "[^:]+") do
             local trial = tonumber(subtoken, 10)
             if trial then
@@ -54,26 +56,29 @@ local function parseRangeString(s, frameCount, offset)
                 local j = origIdx + 1
                 while j > destIdx do
                     j = j - 1
-                    arr[#arr + 1] = j
+                    uniqueDict[j] = true
                 end
             elseif destIdx > origIdx then
                 local j = origIdx - 1
                 while j < destIdx do
                     j = j + 1
-                    arr[#arr + 1] = j
+                    uniqueDict[j] = true
                 end
             else
-                arr[#arr + 1] = destIdx
+                uniqueDict[destIdx] = true
             end
         elseif lenEdges > 0 then
             -- Filter out unique numbers if invalid, don't bother clamping.
             local trial = edges[1]
             if trial >= 1 and trial <= fcVerif then
-                arr[#arr + 1] = edges[1]
+                uniqueDict[trial] = true
             end
         end
     end
 
+    ---@type integer[]
+    local arr = {}
+    for idx, _ in pairs(uniqueDict) do arr[#arr + 1] = idx end
     return arr
 end
 
@@ -86,6 +91,321 @@ end
 ---@return integer
 local function lum(r, g, b)
     return (r * 2126 + g * 7152 + b * 722) // 10000
+end
+
+---@param importFilepath string
+---@param colorMode "RGB"|"GRAY"|"INDEXED"
+---@return Sprite|nil
+local function readFile(importFilepath, colorMode)
+    -- Check for invalid file extension.
+    local filepathLower = string.lower(importFilepath)
+    local fileSysTools = app.fs
+    local fileExt = fileSysTools.fileExtension(filepathLower)
+    local extIsPbm = fileExt == "pbm"
+    local extIsPgm = fileExt == "pgm"
+    local extIsPpm = fileExt == "ppm"
+    if not (extIsPbm or extIsPgm or extIsPpm) then
+        if uiAvailable then
+            app.alert {
+                title = "Error",
+                text = "File extension must be pbm, pgm or ppm."
+            }
+        else
+            print("Error: File extension must be pbm, pgm or ppm.")
+        end
+        return nil
+    end
+
+    local asciiFile, err = io.open(importFilepath, "r")
+    if err ~= nil then
+        if asciiFile then asciiFile:close() end
+        if uiAvailable then
+            app.alert { title = "Error", text = err }
+        else
+            print(err)
+        end
+        return nil
+    end
+
+    if asciiFile == nil then
+        if uiAvailable then
+            app.alert {
+                title = "Error",
+                text = "File could not be opened."
+            }
+        else
+            print(string.format("Error: Could not open file \"%s\".",
+                importFilepath))
+        end
+        return nil
+    end
+
+    -- Cache functions to local when used in loop.
+    local abs = math.abs
+    local floor = math.floor
+    local max = math.max
+    local min = math.min
+    local strgmatch = string.gmatch
+    local strlower = string.lower
+    local strsub = string.sub
+    local strunpack = string.unpack
+
+    ---@type string[]
+    local comments = {}
+
+    ---@type number[]
+    local pxData = {}
+
+    local headerFound = 0
+    local channelMaxFound = 0
+    local whFound = 0
+
+    -- For ASCII pbm files, delimiter needs to be changed to parse lines by
+    -- each character in a sequence, not by strings of characters. This is
+    -- because GIMP exports its pbm bits as "11001" not "1 1 0 0 1".
+    local delimiter = "%S+"
+    local channels3 = false
+    local isBinPbm = false
+    local includesChnlMax = false
+    local isBinary = false
+    local invert = false
+    local channelMax = 255.0
+    local fromChnlSz = 255.0
+    local stride = 1
+    local spriteWidth = 1
+    local spriteHeight = 1
+
+    local charCount = 0
+    local linesItr = asciiFile:lines("L")
+    for line in linesItr do
+        local lenLine = #line
+        charCount = charCount + lenLine
+        if lenLine > 0 then
+            local lc = strlower(line)
+            local twoChars = strsub(lc, 1, 2)
+            if strsub(line, 1, 1) == '#' then
+                comments[#comments + 1] = strsub(line, 1)
+            elseif twoChars == "p1" then
+                headerFound = charCount
+                invert = true
+                delimiter = "%S"
+            elseif twoChars == "p2" then
+                headerFound = charCount
+                includesChnlMax = true
+            elseif twoChars == "p3" then
+                headerFound = charCount
+                includesChnlMax = true
+                channels3 = true
+                stride = 3
+            elseif twoChars == "p4" then
+                headerFound = charCount
+                isBinary = true
+                isBinPbm = true
+                invert = true
+            elseif twoChars == "p5" then
+                headerFound = charCount
+                isBinary = true
+                includesChnlMax = true
+            elseif twoChars == "p6" then
+                headerFound = charCount
+                isBinary = true
+                includesChnlMax = true
+                channels3 = true
+                stride = 3
+            elseif whFound <= 0 then
+                whFound = charCount
+
+                ---@type string[]
+                local whTokens = {}
+                local lenWhTokens = 0
+                for token in strgmatch(line, "%S+") do
+                    lenWhTokens = lenWhTokens + 1
+                    whTokens[lenWhTokens] = token
+                end
+
+                if lenWhTokens > 0 then
+                    local wPrs = tonumber(whTokens[1], 10)
+                    if wPrs then
+                        spriteWidth = floor(abs(wPrs) + 0.5)
+                        spriteHeight = spriteWidth
+                    end
+                end
+
+                if lenWhTokens > 1 then
+                    local hPrs = tonumber(whTokens[2], 10)
+                    if hPrs then
+                        spriteHeight = floor(abs(hPrs) + 0.5)
+                    end
+                end
+
+                if lenWhTokens > 2 then
+                    channelMaxFound = charCount
+                    local channelMaxPrs = tonumber(whTokens[3], 10)
+                    if channelMaxPrs then
+                        channelMax = min(max(floor(abs(channelMaxPrs) + 0.5), 1), 255)
+                        fromChnlSz = 255.0 / channelMax
+                    end
+                end
+            elseif includesChnlMax and channelMaxFound <= 0 then
+                channelMaxFound = charCount
+                local channelMaxPrs = tonumber(lc, 10)
+                if channelMaxPrs then
+                    channelMax = min(max(floor(abs(channelMaxPrs) + 0.5), 1), 255)
+                    fromChnlSz = 255.0 / channelMax
+                end
+            else
+                if isBinary then break end
+                for token in strgmatch(line, delimiter) do
+                    local num = tonumber(token, 10)
+                    if num then pxData[#pxData + 1] = num end
+                end -- End of ASCII read loop.
+            end     -- End of data chunk parse block.
+        end         -- End of line length gt zero check.
+    end             -- End of lines iterator loop.
+
+    asciiFile:close()
+
+    if headerFound <= 0 then
+        if uiAvailable then
+            app.alert {
+                title = "Error",
+                text = "No supported file header found."
+            }
+        else
+            print("Error: No supported file header found.")
+        end
+        return nil
+    end
+
+    if isBinary then
+        -- Assume that the data block is the final block and read from the
+        -- suffix of the file according to the flat length.
+        local flatLen = spriteWidth * spriteHeight
+        if isBinPbm then
+            local charsPerRow = math.ceil(spriteWidth / 8)
+            flatLen = charsPerRow * spriteHeight
+        end
+        local strideFlatLen = stride * flatLen
+
+        local binFile, _ = io.open(importFilepath, "rb")
+        if not binFile then return end
+        local allChars = binFile:read("a")
+        local dataBlock = strsub(allChars, -strideFlatLen)
+        for token in strgmatch(dataBlock, ".") do
+            local num = strunpack("B", token)
+            -- print(strfmt("%02x", num))
+            pxData[#pxData + 1] = num
+        end
+        binFile:close()
+    end
+
+    -- Create image and sprite specification.
+    local clampedSpriteWidth = min(max(spriteWidth, 1), 65535)
+    local clampedSpriteHeight = min(max(spriteHeight, 1), 65535)
+    local spriteSpec = ImageSpec {
+        width = clampedSpriteWidth,
+        height = clampedSpriteHeight,
+        colorMode = ColorMode.RGB,
+        transparentColor = 0
+    }
+    spriteSpec.colorSpace = ColorSpace { sRGB = true }
+
+    -- This precaution minimizes raising an Aseprite error that will
+    -- halt the script.
+    local spriteFlatLen = clampedSpriteHeight * clampedSpriteWidth
+    local spriteStrideFlatLen = stride * spriteFlatLen
+    while #pxData < spriteStrideFlatLen do pxData[#pxData + 1] = 0 end
+
+    -- Write to image based on file type.
+    local image = Image(spriteSpec)
+    if isBinPbm then
+        local charsPerRow = math.ceil(spriteWidth / 8)
+        local pxItr = image:pixels()
+        for pixel in pxItr do
+            local xSprite = pixel.x
+            local ySprite = pixel.y
+
+            local xChar = xSprite // 8
+            local xBit = xSprite % 8
+
+            local j = xChar + charsPerRow * ySprite
+            local char = pxData[1 + j]
+            local shift = 7 - xBit
+            local bit = (char >> shift) & 1
+
+            if bit == 0 then
+                pixel(0xffffffff)
+            else
+                pixel(0xff000000)
+            end
+        end
+    elseif channels3 then
+        local i = 0
+        local pxItr = image:pixels()
+        for pixel in pxItr do
+            local k = i * 3
+            local r = floor(pxData[1 + k] * fromChnlSz + 0.5)
+            local g = floor(pxData[2 + k] * fromChnlSz + 0.5)
+            local b = floor(pxData[3 + k] * fromChnlSz + 0.5)
+            pixel(0xff000000 | b << 0x10 | g << 0x08 | r)
+            i = i + 1
+        end
+    else
+        local i = 0
+        local pxItr = image:pixels()
+        for pixel in pxItr do
+            i = i + 1
+            local u = pxData[i]
+            local v = floor(u * fromChnlSz + 0.5)
+            if invert then v = 255 ~ v end
+            pixel(0xff000000 | v << 0x10 | v << 0x08 | v)
+        end
+    end
+
+    -- Create the sprite and assign the image to the sprite's cel.
+    local sprite = Sprite(spriteSpec)
+    sprite.cels[1].image = image
+
+    -- Name the sprite after the file name.
+    sprite.filename = fileSysTools.fileName(importFilepath)
+
+    -- Set the palette.
+    if extIsPbm then
+        local palette = sprite.palettes[1]
+        app.transaction(function()
+            palette:resize(3)
+            palette:setColor(0, Color { r = 0, g = 0, b = 0, a = 0 })
+            palette:setColor(1, Color { r = 0, g = 0, b = 0, a = 255 })
+            palette:setColor(2, Color { r = 255, g = 255, b = 255, a = 255 })
+        end)
+    else
+        app.command.ColorQuantization { ui = false, maxColors = 256 }
+    end
+
+    -- Set sprite color mode to user preference if not RGB.
+    if colorMode then
+        if colorMode == "INDEXED" then
+            -- Ordered dithering is slow for large images with large palettes.
+            app.command.ChangePixelFormat {
+                ui = false,
+                format = "indexed",
+                -- dithering = "ordered"
+            }
+        elseif colorMode == "GRAY" then
+            app.command.ChangePixelFormat {
+                ui = false,
+                format = "gray",
+                -- toGray = "luma"
+            }
+        end
+    end
+
+    -- Turn off onion skin loop through tag frames.
+    local docPrefs = app.preferences.document(sprite)
+    local onionSkinPrefs = docPrefs.onionskin
+    onionSkinPrefs.loop_tag = false
+
+    return sprite
 end
 
 ---@param exportFilepath string
@@ -426,7 +746,6 @@ local function writeFile(
         local file, err = io.open(frFilePath, writerType)
         if err ~= nil then
             if file then file:close() end
-
             if uiAvailable then
                 app.alert { title = "Error", text = err }
             else
@@ -499,10 +818,10 @@ end
 
 if not uiAvailable then
     local params = app.params
-    print("\nparams:")
-    for k, v in pairs(params) do
-        print(string.format("%s: %s", k, v))
-    end
+    -- print("\nparams:")
+    -- for k, v in pairs(params) do
+    --     print(string.format("%s: %s", k, v))
+    -- end
 
     local action = params["action"]
     if action and #action > 0 then
@@ -536,7 +855,31 @@ if not uiAvailable then
     end
 
     if action == "IMPORT" then
-        -- TODO: Implement.
+        local colorMode = defaults.colorMode
+        local colorModeRequest = params["colorMode"]
+        if colorModeRequest and #colorModeRequest > 0 then
+            colorModeRequest = string.upper(colorModeRequest)
+            if colorModeRequest == "RGB" then
+                colorMode = "RGB"
+            elseif colorModeRequest == "GRAY"
+                or colorModeRequest == "GRAYSCALE"
+                or colorModeRequest == "GREY" then
+                colorMode = "GRAY"
+            elseif colorModeRequest == "INDEXED"
+                or colorModeRequest == "INDEX" then
+                colorMode = "INDEXED"
+            end
+        end
+
+        local sprite = readFile(readFilePath, colorMode)
+        if sprite then
+            sprite:saveAs(writeFilePath)
+            print(string.format("Wrote file to %s .",
+                string.gsub(writeFilePath, "\\+", "\\")))
+        else
+            print(string.format("Error: Sprite %s could not be saved.",
+                string.gsub(writeFilePath, "\\+", "\\")))
+        end
     elseif action == "EXPORT" then
         local readSprite = Sprite { fromFile = readFilePath }
         if not readSprite then
@@ -664,251 +1007,6 @@ dlg:button {
             return
         end
 
-        -- Check for invalid file extension.
-        local filepathLower = string.lower(importFilepath)
-        local fileSysTools = app.fs
-        local fileExt = fileSysTools.fileExtension(filepathLower)
-        local extIsPbm = fileExt == "pbm"
-        local extIsPgm = fileExt == "pgm"
-        local extIsPpm = fileExt == "ppm"
-        if not (extIsPbm or extIsPgm or extIsPpm) then
-            app.alert {
-                title = "Error",
-                text = "File extension must be pbm, pgm or ppm."
-            }
-            return
-        end
-
-        local asciiFile, err = io.open(importFilepath, "r")
-        if err ~= nil then
-            if asciiFile then asciiFile:close() end
-            app.alert { title = "Error", text = err }
-            return
-        end
-
-        if asciiFile == nil then
-            app.alert { title = "Error", text = "File could not be opened." }
-            return
-        end
-
-        -- Cache functions to local when used in loop.
-        local abs = math.abs
-        local floor = math.floor
-        local max = math.max
-        local min = math.min
-        local strgmatch = string.gmatch
-        local strlower = string.lower
-        local strsub = string.sub
-        local strunpack = string.unpack
-
-        ---@type string[]
-        local comments = {}
-
-        ---@type number[]
-        local pxData = {}
-
-        local headerFound = 0
-        local channelMaxFound = 0
-        local whFound = 0
-
-        -- For ASCII pbm files, delimiter needs to be changed to parse lines by
-        -- each character in a sequence, not by strings of characters. This is
-        -- because GIMP exports its pbm bits as "11001" not "1 1 0 0 1".
-        local delimiter = "%S+"
-        local channels3 = false
-        local isBinPbm = false
-        local includesChnlMax = false
-        local isBinary = false
-        local invert = false
-        local channelMax = 255.0
-        local fromChnlSz = 255.0
-        local stride = 1
-        local spriteWidth = 1
-        local spriteHeight = 1
-
-        local charCount = 0
-        local linesItr = asciiFile:lines("L")
-        for line in linesItr do
-            local lenLine = #line
-            charCount = charCount + lenLine
-            if lenLine > 0 then
-                local lc = strlower(line)
-                local twoChars = strsub(lc, 1, 2)
-                if strsub(line, 1, 1) == '#' then
-                    comments[#comments + 1] = strsub(line, 1)
-                elseif twoChars == "p1" then
-                    headerFound = charCount
-                    invert = true
-                    delimiter = "%S"
-                elseif twoChars == "p2" then
-                    headerFound = charCount
-                    includesChnlMax = true
-                elseif twoChars == "p3" then
-                    headerFound = charCount
-                    includesChnlMax = true
-                    channels3 = true
-                    stride = 3
-                elseif twoChars == "p4" then
-                    headerFound = charCount
-                    isBinary = true
-                    isBinPbm = true
-                    invert = true
-                elseif twoChars == "p5" then
-                    headerFound = charCount
-                    isBinary = true
-                    includesChnlMax = true
-                elseif twoChars == "p6" then
-                    headerFound = charCount
-                    isBinary = true
-                    includesChnlMax = true
-                    channels3 = true
-                    stride = 3
-                elseif whFound <= 0 then
-                    whFound = charCount
-
-                    ---@type string[]
-                    local whTokens = {}
-                    local lenWhTokens = 0
-                    for token in strgmatch(line, "%S+") do
-                        lenWhTokens = lenWhTokens + 1
-                        whTokens[lenWhTokens] = token
-                    end
-
-                    if lenWhTokens > 0 then
-                        local wPrs = tonumber(whTokens[1], 10)
-                        if wPrs then
-                            spriteWidth = floor(abs(wPrs) + 0.5)
-                            spriteHeight = spriteWidth
-                        end
-                    end
-
-                    if lenWhTokens > 1 then
-                        local hPrs = tonumber(whTokens[2], 10)
-                        if hPrs then
-                            spriteHeight = floor(abs(hPrs) + 0.5)
-                        end
-                    end
-
-                    if lenWhTokens > 2 then
-                        channelMaxFound = charCount
-                        local channelMaxPrs = tonumber(whTokens[3], 10)
-                        if channelMaxPrs then
-                            channelMax = min(max(floor(abs(channelMaxPrs) + 0.5), 1), 255)
-                            fromChnlSz = 255.0 / channelMax
-                        end
-                    end
-                elseif includesChnlMax and channelMaxFound <= 0 then
-                    channelMaxFound = charCount
-                    local channelMaxPrs = tonumber(lc, 10)
-                    if channelMaxPrs then
-                        channelMax = min(max(floor(abs(channelMaxPrs) + 0.5), 1), 255)
-                        fromChnlSz = 255.0 / channelMax
-                    end
-                else
-                    if isBinary then break end
-                    for token in strgmatch(line, delimiter) do
-                        local num = tonumber(token, 10)
-                        if num then pxData[#pxData + 1] = num end
-                    end -- End of ASCII read loop.
-                end     -- End of data chunk parse block.
-            end         -- End of line length gt zero check.
-        end             -- End of lines iterator loop.
-
-        asciiFile:close()
-
-        if headerFound <= 0 then
-            app.alert {
-                title = "Error",
-                text = "No supported file header found."
-            }
-            return
-        end
-
-        if isBinary then
-            -- Assume that the data block is the final block and read from the
-            -- suffix of the file according to the flat length.
-            local flatLen = spriteWidth * spriteHeight
-            if isBinPbm then
-                local charsPerRow = math.ceil(spriteWidth / 8)
-                flatLen = charsPerRow * spriteHeight
-            end
-            local strideFlatLen = stride * flatLen
-
-            local binFile, _ = io.open(importFilepath, "rb")
-            if not binFile then return end
-            local allChars = binFile:read("a")
-            local dataBlock = strsub(allChars, -strideFlatLen)
-            for token in strgmatch(dataBlock, ".") do
-                local num = strunpack("B", token)
-                -- print(strfmt("%02x", num))
-                pxData[#pxData + 1] = num
-            end
-            binFile:close()
-        end
-
-        -- Create image and sprite specification.
-        local clampedSpriteWidth = min(max(spriteWidth, 1), 65535)
-        local clampedSpriteHeight = min(max(spriteHeight, 1), 65535)
-        local spriteSpec = ImageSpec {
-            width = clampedSpriteWidth,
-            height = clampedSpriteHeight,
-            colorMode = ColorMode.RGB,
-            transparentColor = 0
-        }
-        spriteSpec.colorSpace = ColorSpace { sRGB = true }
-
-        -- This precaution minimizes raising an Aseprite error that will
-        -- halt the script.
-        local spriteFlatLen = clampedSpriteHeight * clampedSpriteWidth
-        local spriteStrideFlatLen = stride * spriteFlatLen
-        while #pxData < spriteStrideFlatLen do pxData[#pxData + 1] = 0 end
-
-        -- Write to image based on file type.
-        local image = Image(spriteSpec)
-        if isBinPbm then
-            local charsPerRow = math.ceil(spriteWidth / 8)
-            local pxItr = image:pixels()
-            for pixel in pxItr do
-                local xSprite = pixel.x
-                local ySprite = pixel.y
-
-                local xChar = xSprite // 8
-                local xBit = xSprite % 8
-
-                local j = xChar + charsPerRow * ySprite
-                local char = pxData[1 + j]
-                local shift = 7 - xBit
-                local bit = (char >> shift) & 1
-
-                if bit == 0 then
-                    pixel(0xffffffff)
-                else
-                    pixel(0xff000000)
-                end
-            end
-        elseif channels3 then
-            local i = 0
-            local pxItr = image:pixels()
-            for pixel in pxItr do
-                local k = i * 3
-                local r = floor(pxData[1 + k] * fromChnlSz + 0.5)
-                local g = floor(pxData[2 + k] * fromChnlSz + 0.5)
-                local b = floor(pxData[3 + k] * fromChnlSz + 0.5)
-                pixel(0xff000000 | b << 0x10 | g << 0x08 | r)
-                i = i + 1
-            end
-        else
-            local i = 0
-            local pxItr = image:pixels()
-            for pixel in pxItr do
-                i = i + 1
-                local u = pxData[i]
-                local v = floor(u * fromChnlSz + 0.5)
-                if invert then v = 255 ~ v end
-                pixel(0xff000000 | v << 0x10 | v << 0x08 | v)
-            end
-        end
-
         -- Preserve fore- and background colors.
         local fgc = app.fgColor
         app.fgColor = Color {
@@ -928,51 +1026,13 @@ dlg:button {
         }
         app.command.SwitchColors()
 
-        -- Create the sprite and assign the image to the sprite's cel.
-        local sprite = Sprite(spriteSpec)
-        sprite.cels[1].image = image
-
-        -- Name the sprite after the file name.
-        sprite.filename = fileSysTools.fileName(importFilepath)
-
-        -- Ensure sprite and layer are active for the sake of app.commands.
-        app.activeSprite = sprite
-        app.activeLayer = sprite.layers[1]
-
-        -- Set the palette.
-        if extIsPbm then
-            local palette = sprite.palettes[1]
-            app.transaction(function()
-                palette:resize(3)
-                palette:setColor(0, Color { r = 0, g = 0, b = 0, a = 0 })
-                palette:setColor(1, Color { r = 0, g = 0, b = 0, a = 255 })
-                palette:setColor(2, Color { r = 255, g = 255, b = 255, a = 255 })
-            end)
-        else
-            app.command.ColorQuantization { ui = false, maxColors = 256 }
-        end
-
         local colorMode = args.colorMode or defaults.colorMode --[[@as string]]
-        if colorMode == "INDEXED" then
-            -- Ordered dithering is slow for large images with large palettes.
-            app.command.ChangePixelFormat {
-                format = "indexed",
-                -- dithering = "ordered"
-            }
-        elseif colorMode == "GRAY" then
-            app.command.ChangePixelFormat {
-                format = "gray",
-                toGray = "luma"
-            }
+        local sprite = readFile(importFilepath, colorMode)
+
+        if sprite then
+            app.command.Zoom { action = "set", percentage = 100 }
+            app.command.ScrollCenter()
         end
-
-        -- Turn off onion skin loop through tag frames.
-        local docPrefs = app.preferences.document(sprite)
-        local onionSkinPrefs = docPrefs.onionskin
-        onionSkinPrefs.loop_tag = false
-
-        app.command.Zoom { action = "set", percentage = 100 }
-        app.command.ScrollCenter()
     end
 }
 
