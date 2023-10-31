@@ -384,6 +384,8 @@ local function readFile(importFilepath, colorMode)
 
     -- Set sprite color mode to user preference if not RGB.
     if colorMode then
+        -- TODO: Allow user to specify the dithering algorithm and toGray method
+        -- via command line?
         if colorMode == "INDEXED" then
             -- Ordered dithering is slow for large images with large palettes.
             app.command.ChangePixelFormat {

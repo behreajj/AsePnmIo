@@ -148,6 +148,26 @@ FF FF FF FF
 
 Binary pbms pack 8 pixels of binary data into one byte, with extra padding depending on the image width.
 
+## Command Line Interface (CLI)
+
+Due to the relative slowness of these Lua scripts, it's recommended to use another graphics package to convert files to or from the PNM format in bulk. However, Aseprite does support calling scripts from the [command line](https://aseprite.org/docs/cli#script). This script has been updated to make use of that feature.
+
+The primary `-script-param` to call for this script is `action`, which may be either `IMPORT`, to convert from PNM, or `EXPORT`, to convert to PNM. The next important parameter is `readFile`, to be assigned a file path. A separate `writeFile` can optionally be specified. If omitted, the `writeFile` path will be provided the `readFile` path with the extension changed to `aseprite` for `IMPORT` or `ppm` for `EXPORT` `action`s.
+
+For example,
+
+```
+aseprite -b -script-param readFile="path\\to\\pnm" -script-param action=IMPORT -script-param colorMode=INDEXED -script "path\\to\\lua"
+```
+
+and
+
+```
+aseprite -b -script-param readFile="path\\to\\img" -script-param writeFile="path\\to\\pnm" -script-param action=EXPORT -script-param writeMode=BINARY -script-param frames=all -script-param channelMax=7 -script-param scale=2 -script "path\\to\\lua"
+```
+
+One of the benefits of exporting via the CLI is that multiple frames can be exported. As seen above, the argument `all` is used. Alternatively, the string `1:3,7:9` uses a colon `:` to specify two ranges from 1 to 3 and from 7 to 9, separated by a comma, `,`.
+
 ## Modification
 
 To modify these scripts, see Aseprite's [API Reference](https://github.com/aseprite/api). There is also a [type definition](https://github.com/behreajj/aseprite-type-definition) for use with VS Code and the [Lua Language Server extension](https://github.com/LuaLS/lua-language-server).
