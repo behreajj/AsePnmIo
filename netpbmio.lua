@@ -1,14 +1,630 @@
+local uiAvailable = app.isUIAvailable
+
 local fileTypes = { "pbm", "pgm", "ppm" }
 local writeModes = { "ASCII", "BINARY" }
 local colorModes = { "RGB", "GRAY", "INDEXED" }
 
 local defaults = {
+    colorMode = "RGB",
     writeMode = "ASCII",
+    channelMax = 255,
+    pivot = 128,
     scale = 1,
     usePixelAspect = true,
-    channelMax = 255,
-    colorMode = "RGB",
 }
+
+---@param s string range string
+---@param frameCount integer? number of frames
+---@param offset integer? offset
+---@return integer[]
+local function parseRangeString(s, frameCount, offset)
+    local offVerif = offset or 0
+    local fcVerif = frameCount or 2147483647
+
+    local strgmatch = string.gmatch
+    local min = math.min
+    local max = math.max
+
+    -- Parse string by comma.
+    ---@type integer[]
+    local arr = {}
+    for token in strgmatch(s, "([^,]+)") do
+        -- Parse string by colon.
+        ---@type integer[]
+        local edges = {}
+        local idxEdges = 0
+        for subtoken in strgmatch(token, "[^:]+") do
+            local trial = tonumber(subtoken, 10)
+            if trial then
+                idxEdges = idxEdges + 1
+                edges[idxEdges] = trial - offVerif
+            end
+        end
+
+        local lenEdges = #edges
+        if lenEdges > 1 then
+            local origIdx = edges[1]
+            local destIdx = edges[lenEdges]
+
+            -- Edges of a range should be clamped to valid.
+            origIdx = min(max(origIdx, 1), fcVerif)
+            destIdx = min(max(destIdx, 1), fcVerif)
+
+            if destIdx < origIdx then
+                local j = origIdx + 1
+                while j > destIdx do
+                    j = j - 1
+                    arr[#arr + 1] = j
+                end
+            elseif destIdx > origIdx then
+                local j = origIdx - 1
+                while j < destIdx do
+                    j = j + 1
+                    arr[#arr + 1] = j
+                end
+            else
+                arr[#arr + 1] = destIdx
+            end
+        elseif lenEdges > 0 then
+            -- Filter out unique numbers if invalid, don't bother clamping.
+            local trial = edges[1]
+            if trial >= 1 and trial <= fcVerif then
+                arr[#arr + 1] = edges[1]
+            end
+        end
+    end
+
+    return arr
+end
+
+---Define luminance function for converting RGB to gray.
+---Default to Aseprite's definition, even though better
+---alternatives exist.
+---@param r integer
+---@param g integer
+---@param b integer
+---@return integer
+local function lum(r, g, b)
+    return (r * 2126 + g * 7152 + b * 722) // 10000
+end
+
+---@param exportFilepath string
+---@param activeSprite Sprite
+---@param frIdcs integer[]
+---@param writeMode "ASCII"|"BINARY"
+---@param channelMax integer
+---@param pivot integer
+---@param scale integer
+---@param usePixelAspect boolean
+local function writeFile(
+    exportFilepath,
+    activeSprite,
+    frIdcs,
+    writeMode,
+    channelMax,
+    pivot,
+    scale,
+    usePixelAspect)
+    -- Check for invalid file extension.
+    local fileSysTools = app.fs
+    local fileExt = fileSysTools.fileExtension(exportFilepath)
+    local filePathAndTitle = string.gsub(
+        fileSysTools.filePathAndTitle(exportFilepath), "\\", "\\\\")
+
+    local fileExtLower = string.lower(fileExt)
+    local extIsPbm = fileExtLower == "pbm"
+    local extIsPgm = fileExtLower == "pgm"
+    local extIsPpm = fileExtLower == "ppm"
+
+    if not (extIsPbm or extIsPgm or extIsPpm) then
+        if uiAvailable then
+            app.alert {
+                title = "Error",
+                text = "File extension must be pbm, pgm or ppm."
+            }
+        else
+            print("Error: File extension must be pbm, pgm or ppm.")
+        end
+        return
+    end
+
+    -- For the pbm file extension, black is associated with 1 or on,
+    -- and white is associated with 0 or off. This is the opposite of
+    -- image conventions.
+    local offTok = "1"
+    local onTok = "0"
+
+    -- Unpack sprite data.
+    local palettes = activeSprite.palettes
+    local spriteSpec = activeSprite.spec
+    local wSprite = spriteSpec.width
+    local hSprite = spriteSpec.height
+    local colorMode = spriteSpec.colorMode
+
+    -- Process color mode.
+    local cmIsRgb = colorMode == ColorMode.RGB
+    local cmIsGry = colorMode == ColorMode.GRAY
+    local cmIsIdx = colorMode == ColorMode.INDEXED
+
+    -- Process mode.
+    local fmtIsBinary = writeMode == "BINARY"
+    local fmtIsAscii = writeMode == "ASCII"
+
+    -- Process channel max.
+    local chnlMaxVerif = math.min(math.max(channelMax, 1), 255)
+    local toChnlMax = chnlMaxVerif / 255.0
+    local frmtrStr = "%d"
+    if fmtIsAscii then
+        if chnlMaxVerif < 10 then
+            frmtrStr = "%01d"
+        elseif chnlMaxVerif < 100 then
+            frmtrStr = "%02d"
+        elseif chnlMaxVerif < 1000 then
+            frmtrStr = "%03d"
+        end
+    end
+
+    -- Process scale.
+    local wScale = scale
+    local hScale = scale
+    if usePixelAspect then
+        -- Pixel ratio sizes are not validated by Aseprite.
+        local pxRatio = activeSprite.pixelRatio
+        local pxw = math.max(1, math.abs(pxRatio.width))
+        local pxh = math.max(1, math.abs(pxRatio.height))
+        wScale = wScale * pxw
+        hScale = hScale * pxh
+    end
+    local useResize = wScale ~= 1 or hScale ~= 1
+    local wSpriteScld = math.min(wSprite * wScale, 65535)
+    local hSpriteScld = math.min(hSprite * hScale, 65535)
+    local imageSizeStr = string.format(
+        "%d %d",
+        wSpriteScld, hSpriteScld)
+
+    -- Supplied to image pixel method when looping
+    -- by pixel row.
+    local rowRect = Rectangle(0, 0, wSpriteScld, 1)
+
+    -- Cache global methods to local.
+    local floor = math.floor
+    local ceil = math.ceil
+    local strfmt = string.format
+    local strpack = string.pack
+    local strsub = string.sub
+    local strgsub = string.gsub
+    local tconcat = table.concat
+    local tinsert = table.insert
+
+    -- For the binary format, the code supplied to io.open is different.
+    -- The separators for columns and rows are not needed.
+    local writerType = "w"
+    local colSep = " "
+    local rowSep = "\n"
+    if fmtIsBinary then
+        writerType = "wb"
+        colSep = ""
+        rowSep = ""
+    end
+
+    -- The appropriate string for a pixel differs based on (1.) the
+    -- extension, (2.) the sprite color mode, (3.) whether ASCII or binary
+    -- is being written. Binary .pbm files are a special case because bits
+    -- are packed into byte-sized ASCII chars.
+    local headerStr = ""
+    local chnlMaxStr = ""
+    local isBinPbm = false
+    local writePixel = nil
+
+    if extIsPpm then
+        -- File extension supports RGB.
+        headerStr = "P3"
+        chnlMaxStr = strfmt("%d", chnlMaxVerif)
+        local rgbFrmtrStr = strfmt(
+            "%s %s %s",
+            frmtrStr, frmtrStr, frmtrStr)
+        if fmtIsBinary then
+            headerStr = "P6"
+            rgbFrmtrStr = "%s%s%s"
+        end
+
+        if cmIsIdx then
+            if fmtIsBinary then
+                writePixel = function(h, p)
+                    local c = p:getColor(h)
+                    return strfmt(rgbFrmtrStr,
+                        strpack("B", floor(c.red * toChnlMax + 0.5)),
+                        strpack("B", floor(c.green * toChnlMax + 0.5)),
+                        strpack("B", floor(c.blue * toChnlMax + 0.5)))
+                end
+            else
+                writePixel = function(h, p)
+                    local c = p:getColor(h)
+                    return strfmt(rgbFrmtrStr,
+                        floor(c.red * toChnlMax + 0.5),
+                        floor(c.green * toChnlMax + 0.5),
+                        floor(c.blue * toChnlMax + 0.5))
+                end
+            end
+        elseif cmIsGry then
+            if fmtIsBinary then
+                writePixel = function(h)
+                    local vc = strpack("B", floor(
+                        (h & 0xff) * toChnlMax + 0.5))
+                    return strfmt(rgbFrmtrStr, vc, vc, vc)
+                end
+            else
+                writePixel = function(h)
+                    local v = floor((h & 0xff) * toChnlMax + 0.5)
+                    return strfmt(rgbFrmtrStr, v, v, v)
+                end
+            end
+        else
+            -- Default to RGB color mode.
+            if fmtIsBinary then
+                writePixel = function(h)
+                    return strfmt(rgbFrmtrStr,
+                        strpack("B", floor((h & 0xff) * toChnlMax + 0.5)),
+                        strpack("B", floor((h >> 0x08 & 0xff) * toChnlMax + 0.5)),
+                        strpack("B", floor((h >> 0x10 & 0xff) * toChnlMax + 0.5)))
+                end
+            else
+                writePixel = function(h)
+                    return strfmt(rgbFrmtrStr,
+                        floor((h & 0xff) * toChnlMax + 0.5),
+                        floor((h >> 0x08 & 0xff) * toChnlMax + 0.5),
+                        floor((h >> 0x10 & 0xff) * toChnlMax + 0.5))
+                end
+            end
+        end
+    elseif extIsPgm then
+        -- File extension supports grayscale.
+        -- From Wikipedia:
+        -- "Conventionally PGM stores values in linear color space, but
+        -- depending on the application, it can often use either sRGB or a
+        -- simplified gamma representation."
+
+        headerStr = "P2"
+        chnlMaxStr = strfmt("%d", chnlMaxVerif)
+        if fmtIsBinary then
+            headerStr = "P5"
+        end
+
+        if cmIsIdx then
+            if fmtIsBinary then
+                writePixel = function(h, p)
+                    local c = p:getColor(h)
+                    return strpack("B", floor(lum(
+                        c.red, c.green, c.blue) * toChnlMax + 0.5))
+                end
+            else
+                writePixel = function(h, p)
+                    local c = p:getColor(h)
+                    return strfmt(frmtrStr, floor(lum(
+                        c.red, c.green, c.blue) * toChnlMax + 0.5))
+                end
+            end
+        elseif cmIsRgb then
+            if fmtIsBinary then
+                writePixel = function(h)
+                    return strpack("B", floor(lum(
+                        h & 0xff,
+                        h >> 0x08 & 0xff,
+                        h >> 0x10 & 0xff) * toChnlMax + 0.5))
+                end
+            else
+                writePixel = function(h)
+                    return strfmt(frmtrStr, floor(lum(
+                        h & 0xff,
+                        h >> 0x08 & 0xff,
+                        h >> 0x10 & 0xff) * toChnlMax + 0.5))
+                end
+            end
+        else
+            -- Default to grayscale color mode.
+            if fmtIsBinary then
+                writePixel = function(h)
+                    return strpack("B", floor((h & 0xff) * toChnlMax + 0.5))
+                end
+            else
+                writePixel = function(h)
+                    return strfmt(frmtrStr, floor((h & 0xff) * toChnlMax + 0.5))
+                end
+            end
+        end
+    else
+        -- Default to extIsPbm (1 or 0).
+        headerStr = "P1"
+        if fmtIsBinary then
+            headerStr = "P4"
+            isBinPbm = true
+        end
+
+        if cmIsGry then
+            writePixel = function(h)
+                if (h & 0xff) < pivot then return offTok end
+                return onTok
+            end
+        elseif cmIsRgb then
+            writePixel = function(h)
+                if lum(h & 0xff, h >> 0x08 & 0xff,
+                        h >> 0x10 & 0xff) < pivot then
+                    return offTok
+                end
+                return onTok
+            end
+        else
+            writePixel = function(h, p)
+                local c = p:getColor(h)
+                if lum(c.red, c.green, c.blue) < pivot then
+                    return offTok
+                end
+                return onTok
+            end
+        end
+    end
+
+    -- Store unique pixels in a dictionary, where each pixel value is the
+    -- key and its string representation is the value. (For multiple frames,
+    -- initialize this dictionary outside the frames loop.)
+    ---@type table<integer, string>
+    local hexToStr = {}
+
+    local lenFrIdcs = #frIdcs
+    local h = 0
+    while h < lenFrIdcs do
+        h = h + 1
+        local frIdx = frIdcs[h]
+
+        -- In rare cases, e.g., a sprite opened from a sequence of indexed
+        -- color mode files, there may be multiple palettes in the sprite.
+        local paletteIdx = frIdx
+        local lenPalettes = #palettes
+        if paletteIdx > lenPalettes then paletteIdx = 1 end
+        local palette = palettes[paletteIdx]
+
+        -- Blit the sprite composite onto a new image.
+        local trgImage = Image(spriteSpec)
+        trgImage:drawSprite(activeSprite, frIdx)
+        local trgPxItr = trgImage:pixels()
+
+        -- Convert pixels to strings.
+        for pixel in trgPxItr do
+            local hex = pixel()
+            if not hexToStr[hex] then
+                hexToStr[hex] = writePixel(hex, palette)
+            end
+        end
+
+        -- Scale image after unique pixels have been found.
+        if useResize then
+            trgImage:resize(wSpriteScld, hSpriteScld)
+        end
+
+        -- Concatenate pixels into  columns, then rows.
+        ---@type string[]
+        local rowStrs = {}
+        local j = 0
+        while j < hSpriteScld do
+            ---@type string[]
+            local colStrs = {}
+            rowRect.y = j
+            local rowItr = trgImage:pixels(rowRect)
+            for rowPixel in rowItr do
+                colStrs[#colStrs + 1] = hexToStr[rowPixel()]
+            end
+
+            j = j + 1
+            rowStrs[j] = tconcat(colStrs, colSep)
+        end
+
+        local frFilePath = exportFilepath
+        if lenFrIdcs > 1 then
+            frFilePath = strfmt("%s_%03d.%s", filePathAndTitle, frIdx, fileExt)
+        end
+
+        local file, err = io.open(frFilePath, writerType)
+        if err ~= nil then
+            if file then file:close() end
+
+            if uiAvailable then
+                app.alert { title = "Error", text = err }
+            else
+                print(err)
+            end
+            return
+        end
+
+        if file == nil then
+            if uiAvailable then
+                app.alert {
+                    title = "Error",
+                    text = "File could not be opened."
+                }
+            else
+                print(strfmt("Error: Could not open file \"%s\".", frFilePath))
+            end
+            return
+        end
+
+        local imgDataStr = ""
+        if isBinPbm then
+            -- From Wikipedia:
+            -- "The P4 binary format of the same image represents each pixel
+            -- with a single bit, packing 8 pixels per byte, with the first
+            -- pixel as the most significant bit. Extra bits are added at the
+            -- end of each row to fill a whole byte."
+
+            ---@type string[]
+            local charStrs = {}
+            local lenRows = #rowStrs
+            local k = 0
+            while k < lenRows do
+                k = k + 1
+                local rowStr = rowStrs[k]
+                local lenRowStr = #rowStr
+                local lenRowChars = ceil(lenRowStr / 8)
+
+                local m = 0
+                while m < lenRowChars do
+                    local idxOrig = 1 + m * 8
+                    local idxDest = idxOrig + 7
+                    local strSeg = strsub(rowStr, idxOrig, idxDest)
+                    while #strSeg < 8 do strSeg = strSeg .. offTok end
+                    local numSeg = tonumber(strSeg, 2)
+                    charStrs[#charStrs + 1] = strpack("B", numSeg)
+                    m = m + 1
+                end
+            end
+
+            imgDataStr = tconcat(charStrs)
+        else
+            imgDataStr = tconcat(rowStrs, rowSep)
+        end
+
+        ---@type string[]
+        local chunks = { headerStr, imageSizeStr, imgDataStr }
+        if not extIsPbm then
+            tinsert(chunks, 3, chnlMaxStr)
+        end
+        file:write(tconcat(chunks, "\n"))
+        file:close()
+
+        if not uiAvailable then
+            print(strfmt("Wrote file to %s .",
+                strgsub(frFilePath, "\\+", "\\")))
+        end
+    end
+end
+
+if not uiAvailable then
+    local params = app.params
+    print("\nparams:")
+    for k, v in pairs(params) do
+        print(string.format("%s: %s", k, v))
+    end
+
+    local action = params["action"]
+    if action and #action > 0 then
+        action = string.upper(action)
+    else
+        print("Error: Parameter \"action\" requires an argument.")
+        return
+    end
+
+    local readFilePath = params["readFile"] or params["file"]
+    if not readFilePath or #readFilePath < 1 then
+        print("Error: Parameter \"readFile\" requires an argument.")
+        return
+    end
+
+    if not app.fs.isFile(readFilePath) then
+        print("Error: \"readFile\" does not refer to an existing file.")
+        return
+    end
+
+    local writeFilePath = params["writeFile"]
+    if not writeFilePath or #writeFilePath < 1 then
+        if action == "IMPORT" then
+            writeFilePath = app.fs.filePathAndTitle(readFilePath) .. ".aseprite"
+        elseif action == "EXPORT" then
+            writeFilePath = app.fs.filePathAndTitle(readFilePath) .. ".ppm"
+        else
+            print("Error: Parameter \"writeFile\" requires an argument.")
+            return
+        end
+    end
+
+    if action == "IMPORT" then
+        -- TODO: Implement.
+    elseif action == "EXPORT" then
+        local readSprite = Sprite { fromFile = readFilePath }
+        if not readSprite then
+            print("Error: File could not be loaded to sprite.")
+            return
+        end
+
+        ---@type integer[]
+        local frIdcs = {}
+        local framesRequest = params["frames"]
+        if framesRequest and #framesRequest > 0 then
+            framesRequest = string.upper(framesRequest)
+            local numFrames = #readSprite.frames
+            if framesRequest == "ALL" then
+                local i = 0
+                while i < numFrames do
+                    i = i + 1
+                    frIdcs[i] = i
+                end
+            else
+                frIdcs = parseRangeString(framesRequest, numFrames, 0)
+            end
+        else
+            frIdcs[1] = 1
+        end
+
+        local writeMode = defaults.writeMode
+        local writeModeRequest = params["writeMode"]
+        if writeModeRequest and #writeModeRequest > 0 then
+            writeModeRequest = string.upper(writeModeRequest)
+            if writeModeRequest == "BINARY"
+                or writeModeRequest == "RAW" then
+                writeMode = "BINARY"
+            elseif writeModeRequest == "ASCII"
+                or writeModeRequest == "TEXT" then
+                writeMode = "ASCII"
+            end
+        end
+
+        local channelMax = defaults.channelMax
+        local channelMaxRequest = params["channelMax"]
+        if channelMaxRequest and #channelMaxRequest > 0 then
+            local channelMaxParsed = tonumber(channelMaxRequest, 10)
+            if channelMaxParsed then
+                channelMax = math.min(math.max(math.floor(math.abs(
+                    channelMaxParsed) + 0.5), 1), 255)
+            end
+        end
+
+        local pivot = defaults.pivot
+        local pivotRequest = params["pivot"] or params["threshold"]
+        if pivotRequest and #pivotRequest > 0 then
+            local pivotParsed = tonumber(pivotRequest, 10)
+            if pivotParsed then
+                pivot = math.min(math.max(math.floor(math.abs(
+                    pivotParsed) + 0.5), 1), 255)
+            end
+        end
+
+        local scale = defaults.scale
+        local scaleRequest = params["scale"]
+        if scaleRequest and #scaleRequest > 0 then
+            local scaleParsed = tonumber(scaleRequest, 10)
+            if scaleParsed then
+                scale = math.min(math.max(math.floor(math.abs(
+                    scaleParsed) + 0.5), 1), 10)
+            end
+        end
+
+        local usePixelAspect = defaults.usePixelAspect
+        local upaRequest = params["usePixelAspect"]
+        if upaRequest and #upaRequest > 0 then
+            upaRequest = string.lower(upaRequest)
+            if upaRequest == "f" or upaRequest == "false" then
+                usePixelAspect = false
+            elseif upaRequest == "t" or upaRequest == "true" then
+                usePixelAspect = true
+            end
+        end
+
+        writeFile(writeFilePath, readSprite, frIdcs, writeMode, channelMax,
+            pivot, scale, usePixelAspect)
+    else
+        print("Error: Action was not recognized.")
+    end
+
+    return
+end
 
 local dlg = Dialog { title = "PNM Import Export" }
 
@@ -278,8 +894,7 @@ dlg:button {
                 local r = floor(pxData[1 + k] * fromChnlSz + 0.5)
                 local g = floor(pxData[2 + k] * fromChnlSz + 0.5)
                 local b = floor(pxData[3 + k] * fromChnlSz + 0.5)
-                local hex = 0xff000000 | b << 0x10 | g << 0x08 | r
-                pixel(hex)
+                pixel(0xff000000 | b << 0x10 | g << 0x08 | r)
                 i = i + 1
             end
         else
@@ -290,8 +905,7 @@ dlg:button {
                 local u = pxData[i]
                 local v = floor(u * fromChnlSz + 0.5)
                 if invert then v = 255 ~ v end
-                local hex = 0xff000000 | v << 0x10 | v << 0x08 | v
-                pixel(hex)
+                pixel(0xff000000 | v << 0x10 | v << 0x08 | v)
             end
         end
 
@@ -340,9 +954,10 @@ dlg:button {
 
         local colorMode = args.colorMode or defaults.colorMode --[[@as string]]
         if colorMode == "INDEXED" then
+            -- Ordered dithering is slow for large images with large palettes.
             app.command.ChangePixelFormat {
                 format = "indexed",
-                dithering = "ordered"
+                -- dithering = "ordered"
             }
         elseif colorMode == "GRAY" then
             app.command.ChangePixelFormat {
@@ -379,6 +994,17 @@ dlg:slider {
     min = 1,
     max = 255,
     value = defaults.channelMax
+}
+
+dlg:newrow { always = false }
+
+dlg:slider {
+    id = "pivot",
+    label = "Pivot:",
+    min = 1,
+    max = 255,
+    value = defaults.pivot,
+    visible = false
 }
 
 dlg:newrow { always = false }
@@ -449,370 +1075,19 @@ dlg:button {
             return
         end
 
-        -- Check for invalid file extension.
-        local filepathLower = string.lower(exportFilepath)
-        local fileSysTools = app.fs
-        local fileExt = fileSysTools.fileExtension(filepathLower)
-        local extIsPbm = fileExt == "pbm"
-        local extIsPgm = fileExt == "pgm"
-        local extIsPpm = fileExt == "ppm"
-        if not (extIsPbm or extIsPgm or extIsPpm) then
-            app.alert {
-                title = "Error",
-                text = "File extension must be pbm, pgm or ppm."
-            }
-            return
-        end
-
-        -- For the pbm file extension, black is associated with 1 or on,
-        -- and white is associated with 0 or off. This is the opposite of
-        -- image conventions.
-        local offTok = "1"
-        local onTok = "0"
-
-        -- Unpack sprite spec.
-        local spriteSpec = activeSprite.spec
-        local wSprite = spriteSpec.width
-        local hSprite = spriteSpec.height
-        local colorMode = spriteSpec.colorMode
-
-        -- Process color mode.
-        local cmIsRgb = colorMode == ColorMode.RGB
-        local cmIsGry = colorMode == ColorMode.GRAY
-        local cmIsIdx = colorMode == ColorMode.INDEXED
-
         -- Unpack other arguments.
-        local format = args.writeMode
-            or defaults.mode --[[@as string]]
+        local writeMode = args.writeMode
+            or defaults.writeMode --[[@as string]]
         local channelMax = args.channelMax
             or defaults.channelMax --[[@as integer]]
+        local pivot = args.pivot
+            or defaults.pivot --[[@as integer]]
         local scale = args.scale
             or defaults.scale --[[@as integer]]
         local usePixelAspect = args.usePixelAspect --[[@as boolean]]
 
-        -- Process mode.
-        local fmtIsBinary = format == "BINARY"
-        local fmtIsAscii = format == "ASCII"
-
-        -- Process channel max.
-        local chnlMaxVerif = math.min(math.max(channelMax, 1), 255)
-        local toChnlMax = chnlMaxVerif / 255.0
-        local frmtrStr = "%d"
-        if fmtIsAscii then
-            if chnlMaxVerif < 10 then
-                frmtrStr = "%01d"
-            elseif chnlMaxVerif < 100 then
-                frmtrStr = "%02d"
-            elseif chnlMaxVerif < 1000 then
-                frmtrStr = "%03d"
-            end
-        end
-
-        -- Process scale.
-        local wScale = scale
-        local hScale = scale
-        if usePixelAspect then
-            -- Pixel ratio sizes are not validated by Aseprite.
-            local pxRatio = activeSprite.pixelRatio
-            local pxw = math.max(1, math.abs(pxRatio.width))
-            local pxh = math.max(1, math.abs(pxRatio.height))
-            wScale = wScale * pxw
-            hScale = hScale * pxh
-        end
-        local useResize = wScale ~= 1 or hScale ~= 1
-        local wSpriteScld = math.min(wSprite * wScale, 65535)
-        local hSpriteScld = math.min(hSprite * hScale, 65535)
-        local imageSizeStr = string.format(
-            "%d %d",
-            wSpriteScld, hSpriteScld)
-
-        -- Supplied to image pixel method when looping
-        -- by pixel row.
-        local rowRect = Rectangle(0, 0, wSpriteScld, 1)
-
-        -- Define luminance function for converting RGB to gray.
-        -- Default to Aseprite's definition, even though better
-        -- alternatives exist.
-        ---@type fun(r: integer, g: integer, b: integer): integer
-        local lum = function(r, g, b)
-            return (r * 2126 + g * 7152 + b * 722) // 10000
-        end
-
-        -- Cache global methods to local.
-        local floor = math.floor
-        local ceil = math.ceil
-        local strfmt = string.format
-        local strpack = string.pack
-        local strsub = string.sub
-        local tconcat = table.concat
-        local tinsert = table.insert
-
-        -- For the binary format, the code supplied to io.open is different.
-        -- The separators for columns and rows are not needed.
-        local writerType = "w"
-        local colSep = " "
-        local rowSep = "\n"
-        if fmtIsBinary then
-            writerType = "wb"
-            colSep = ""
-            rowSep = ""
-        end
-
-        -- The appropriate string for a pixel differs based on (1.) the
-        -- extension, (2.) the sprite color mode, (3.) whether ASCII or binary
-        -- is being written. Binary .pbm files are a special case because bits
-        -- are packed into byte-sized ASCII chars.
-        local headerStr = ""
-        local chnlMaxStr = ""
-        local isBinPbm = false
-        local writePixel = nil
-
-        if extIsPpm then
-            -- File extension supports RGB.
-            headerStr = "P3"
-            chnlMaxStr = strfmt("%d", chnlMaxVerif)
-            local rgbFrmtrStr = strfmt(
-                "%s %s %s",
-                frmtrStr, frmtrStr, frmtrStr)
-            if fmtIsBinary then
-                headerStr = "P6"
-                rgbFrmtrStr = "%s%s%s"
-            end
-
-            if cmIsIdx then
-                if fmtIsBinary then
-                    writePixel = function(h, p)
-                        local c = p:getColor(h)
-                        return strfmt(rgbFrmtrStr,
-                            strpack("B", floor(c.red * toChnlMax + 0.5)),
-                            strpack("B", floor(c.green * toChnlMax + 0.5)),
-                            strpack("B", floor(c.blue * toChnlMax + 0.5)))
-                    end
-                else
-                    writePixel = function(h, p)
-                        local c = p:getColor(h)
-                        return strfmt(rgbFrmtrStr,
-                            floor(c.red * toChnlMax + 0.5),
-                            floor(c.green * toChnlMax + 0.5),
-                            floor(c.blue * toChnlMax + 0.5))
-                    end
-                end
-            elseif cmIsGry then
-                if fmtIsBinary then
-                    writePixel = function(h)
-                        local vc = strpack("B", floor(
-                            (h & 0xff) * toChnlMax + 0.5))
-                        return strfmt(rgbFrmtrStr, vc, vc, vc)
-                    end
-                else
-                    writePixel = function(h)
-                        local v = floor((h & 0xff) * toChnlMax + 0.5)
-                        return strfmt(rgbFrmtrStr, v, v, v)
-                    end
-                end
-            else
-                -- Default to RGB color mode.
-                if fmtIsBinary then
-                    writePixel = function(h)
-                        return strfmt(rgbFrmtrStr,
-                            strpack("B", floor((h & 0xff) * toChnlMax + 0.5)),
-                            strpack("B", floor((h >> 0x08 & 0xff) * toChnlMax + 0.5)),
-                            strpack("B", floor((h >> 0x10 & 0xff) * toChnlMax + 0.5)))
-                    end
-                else
-                    writePixel = function(h)
-                        return strfmt(rgbFrmtrStr,
-                            floor((h & 0xff) * toChnlMax + 0.5),
-                            floor((h >> 0x08 & 0xff) * toChnlMax + 0.5),
-                            floor((h >> 0x10 & 0xff) * toChnlMax + 0.5))
-                    end
-                end
-            end
-        elseif extIsPgm then
-            -- File extension supports grayscale.
-            -- From Wikipedia:
-            -- "Conventionally PGM stores values in linear color space, but
-            -- depending on the application, it can often use either sRGB or a
-            -- simplified gamma representation."
-
-            headerStr = "P2"
-            chnlMaxStr = strfmt("%d", chnlMaxVerif)
-            if fmtIsBinary then
-                headerStr = "P5"
-            end
-
-            if cmIsIdx then
-                if fmtIsBinary then
-                    writePixel = function(h, p)
-                        local c = p:getColor(h)
-                        return strpack("B", floor(lum(
-                            c.red, c.green, c.blue) * toChnlMax + 0.5))
-                    end
-                else
-                    writePixel = function(h, p)
-                        local c = p:getColor(h)
-                        return strfmt(frmtrStr, floor(lum(
-                            c.red, c.green, c.blue) * toChnlMax + 0.5))
-                    end
-                end
-            elseif cmIsRgb then
-                if fmtIsBinary then
-                    writePixel = function(h)
-                        return strpack("B", floor(lum(
-                            h & 0xff,
-                            h >> 0x08 & 0xff,
-                            h >> 0x10 & 0xff) * toChnlMax + 0.5))
-                    end
-                else
-                    writePixel = function(h)
-                        return strfmt(frmtrStr, floor(lum(
-                            h & 0xff,
-                            h >> 0x08 & 0xff,
-                            h >> 0x10 & 0xff) * toChnlMax + 0.5))
-                    end
-                end
-            else
-                -- Default to grayscale color mode.
-                if fmtIsBinary then
-                    writePixel = function(h)
-                        return strpack("B", floor((h & 0xff) * toChnlMax + 0.5))
-                    end
-                else
-                    writePixel = function(h)
-                        return strfmt(frmtrStr, floor((h & 0xff) * toChnlMax + 0.5))
-                    end
-                end
-            end
-        else
-            -- Default to extIsPbm (1 or 0).
-            headerStr = "P1"
-            if fmtIsBinary then
-                headerStr = "P4"
-                isBinPbm = true
-            end
-
-            if cmIsGry then
-                writePixel = function(h)
-                    if (h & 0xff) < 128 then return offTok end
-                    return onTok
-                end
-            elseif cmIsRgb then
-                writePixel = function(h)
-                    if lum(h & 0xff, h >> 0x08 & 0xff,
-                            h >> 0x10 & 0xff) < 128 then
-                        return offTok
-                    end
-                    return onTok
-                end
-            else
-                writePixel = function(h, p)
-                    local c = p:getColor(h)
-                    if lum(c.red, c.green, c.blue) < 128 then return offTok end
-                    return onTok
-                end
-            end
-        end
-
-        -- In rare cases, e.g., a sprite opened from a sequence of indexed
-        -- color mode files, there may be multiple palettes in the sprite.
-        local frameIdx = activeFrame.frameNumber
-        local paletteIdx = frameIdx
-        local palettes = activeSprite.palettes
-        local lenPalettes = #palettes
-        if paletteIdx > lenPalettes then paletteIdx = 1 end
-        local palette = palettes[paletteIdx]
-
-        -- Blit the sprite composite onto a new image.
-        local trgImage = Image(spriteSpec)
-        trgImage:drawSprite(activeSprite, activeFrame)
-        local trgPxItr = trgImage:pixels()
-
-        -- Store unique pixels in a dictionary, where each pixel value is the
-        -- key and its string representation is the value.
-        ---@type table<integer, string>
-        local hexToStr = {}
-        for pixel in trgPxItr do
-            local hex = pixel()
-            if not hexToStr[hex] then
-                hexToStr[hex] = writePixel(hex, palette)
-            end
-        end
-
-        -- Scale image after unique pixels have been found.
-        if useResize then
-            trgImage:resize(wSpriteScld, hSpriteScld)
-        end
-
-        ---@type string[]
-        local rowStrs = {}
-        local j = 0
-        while j < hSpriteScld do
-            ---@type string[]
-            local colStrs = {}
-            rowRect.y = j
-            local rowItr = trgImage:pixels(rowRect)
-            for rowPixel in rowItr do
-                colStrs[#colStrs + 1] = hexToStr[rowPixel()]
-            end
-
-            j = j + 1
-            rowStrs[j] = tconcat(colStrs, colSep)
-        end
-
-        local file, err = io.open(exportFilepath, writerType)
-        if err ~= nil then
-            if file then file:close() end
-            app.alert { title = "Error", text = err }
-            return
-        end
-
-        if file == nil then
-            app.alert { title = "Error", text = "File could not be opened." }
-            return
-        end
-
-        local imgDataStr = ""
-        if isBinPbm then
-            -- From Wikipedia:
-            -- "The P4 binary format of the same image represents each
-            -- pixel with a single bit, packing 8 pixels per byte, with
-            -- the first pixel as the most significant bit. Extra bits
-            -- are added at the end of each row to fill a whole byte."
-
-            ---@type string[]
-            local charStrs = {}
-            local lenRows = #rowStrs
-            local k = 0
-            while k < lenRows do
-                k = k + 1
-                local rowStr = rowStrs[k]
-                local lenRowStr = #rowStr
-                local lenRowChars = ceil(lenRowStr / 8)
-
-                local m = 0
-                while m < lenRowChars do
-                    local idxOrig = 1 + m * 8
-                    local idxDest = idxOrig + 7
-                    local strSeg = strsub(rowStr, idxOrig, idxDest)
-                    while #strSeg < 8 do strSeg = strSeg .. offTok end
-                    local numSeg = tonumber(strSeg, 2)
-                    charStrs[#charStrs + 1] = strpack("B", numSeg)
-                    m = m + 1
-                end
-            end
-
-            imgDataStr = tconcat(charStrs)
-        else
-            imgDataStr = tconcat(rowStrs, rowSep)
-        end
-
-        ---@type string[]
-        local chunks = { headerStr, imageSizeStr, imgDataStr }
-        if not extIsPbm then
-            tinsert(chunks, 3, chnlMaxStr)
-        end
-        file:write(tconcat(chunks, "\n"))
-        file:close()
+        writeFile(exportFilepath, activeSprite, { activeFrame.frameNumber },
+            writeMode, channelMax, pivot, scale, usePixelAspect)
 
         app.alert {
             title = "Success",

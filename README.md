@@ -24,7 +24,7 @@ A hot key can be assigned to the script by going to `Edit > Keyboard Shortcuts`.
 
 Import and export ignore alpha *completely*. (For example transparent red, `0x000000ff`, will not be corrected to opaque black, `0xff000000`.) I recommend that you set an opaque background layer if you want to avoid issues.
 
-The Netpbm file format supports neither layers nor frames. For that reason, a flattened copy of the sprite is made at the active frame.
+PNM file formats support neither layers nor frames. For that reason, a flattened copy of the sprite is made at the active frame.
 
 When the color maximum is reduced, the script performs *no* dithering, unlike GIMP or Krita. Dither prior to export if you want the effect. 
 
