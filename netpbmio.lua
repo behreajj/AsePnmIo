@@ -95,8 +95,10 @@ end
 
 ---@param importFilepath string
 ---@param colorMode "RGB"|"GRAY"|"INDEXED"
+---@param dithering "ordered"|"old"|"error-diffusion"|"none"
+---@param toGray "luma"|"hsv"|"hsl"|"default"
 ---@return Sprite|nil
-local function readFile(importFilepath, colorMode)
+local function readFile(importFilepath, colorMode, dithering, toGray)
     -- Check for invalid file extension.
     local filepathLower = string.lower(importFilepath)
     local fileSysTools = app.fs
@@ -382,22 +384,23 @@ local function readFile(importFilepath, colorMode)
         app.command.ColorQuantization { ui = false, maxColors = 256 }
     end
 
-    -- Set sprite color mode to user preference if not RGB.
+    -- Set sprite color mode to user preference if not RGB. Internally, the
+    -- default will be used in an else case when there's no match.
     if colorMode then
-        -- TODO: Allow user to specify the dithering algorithm and toGray method
-        -- via command line?
         if colorMode == "INDEXED" then
             -- Ordered dithering is slow for large images with large palettes.
             app.command.ChangePixelFormat {
                 ui = false,
                 format = "indexed",
-                -- dithering = "ordered"
+                ---@diagnostic disable-next-line: assign-type-mismatch
+                dithering = dithering
             }
         elseif colorMode == "GRAY" then
             app.command.ChangePixelFormat {
                 ui = false,
                 format = "gray",
-                -- toGray = "luma"
+                ---@diagnostic disable-next-line: assign-type-mismatch
+                toGray = toGray
             }
         end
     end
@@ -873,7 +876,19 @@ if not uiAvailable then
             end
         end
 
-        local sprite = readFile(readFilePath, colorMode)
+        local dithering = "none"
+        local ditherRequest = params["dithering"]
+        if ditherRequest and #ditherRequest > 0 then
+            dithering = string.lower(ditherRequest)
+        end
+
+        local toGray = "default"
+        local toGrayRequest = params["toGray"]
+        if toGrayRequest and #toGrayRequest > 0 then
+            toGray = string.lower(toGrayRequest)
+        end
+
+        local sprite = readFile(readFilePath, colorMode, dithering, toGray)
         if sprite then
             sprite:saveAs(writeFilePath)
             print(string.format("Wrote file to %s .",
@@ -1029,7 +1044,7 @@ dlg:button {
         app.command.SwitchColors()
 
         local colorMode = args.colorMode or defaults.colorMode --[[@as string]]
-        local sprite = readFile(importFilepath, colorMode)
+        local sprite = readFile(importFilepath, colorMode, "none", "default")
 
         if sprite then
             app.command.Zoom { action = "set", percentage = 100 }

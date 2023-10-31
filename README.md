@@ -26,7 +26,7 @@ Import and export ignore alpha *completely*. For example transparent red, `0x000
 
 PNM file formats support neither layers nor frames. For that reason, a flattened copy of the sprite is made at the active frame (unless the script is called from the CLI, see below).
 
-When the color maximum is reduced, the script performs *no* dithering, unlike GIMP or Krita. Dither prior to export if you want the effect. Channel contraction uses the formula `floor(value * (max / 255.0) + 0.5)`; expansion, `floor(value * (255.0 / max) + 0.5)`. This is equivalent to a signed, rather than an unsigned quantization. The difference can be illustrated with this [Desmos graph](https://www.desmos.com/calculator/8izpd3rfcj) or a comparison of gradients.
+When the color maximum is reduced, the script performs *no* dithering, unlike GIMP or Krita. Dither prior to export if you want the effect. Channel contraction uses the formula `floor(val * (mx / 255) + 0.5)`; expansion, `floor(val * (255 / mx) + 0.5)`. This is equivalent to a signed, rather than an unsigned quantization. The difference can be illustrated with this [Desmos graph](https://www.desmos.com/calculator/8izpd3rfcj) or a comparison of gradients.
 
 ![Quantize Comparison](quantizeCompare.png)
 
@@ -154,7 +154,7 @@ Binary pbms pack 8 pixels of binary data into one byte, with extra padding depen
 
 ## Command Line Interface
 
-Due to the relative slowness of Lua scripts, I recommend using another graphics package to convert files to or from the PNM format in bulk. However, Aseprite does support calling scripts from the [command line](https://aseprite.org/docs/cli#script) (CLI). This script has been updated to utilize that feature.
+Due to the relative slowness of Lua scripts, I recommend using another graphics package to convert files to or from PNM in bulk. However, Aseprite does support calling scripts from the [command line](https://aseprite.org/docs/cli#script) (CLI). This script has been updated to utilize that feature.
 
 The primary `-script-param` to call is `action`, which may be either `IMPORT` -- to convert from PNM -- or `EXPORT` -- to convert to PNM. The next important parameter is `readFile`, which should be assigned a file path. A separate `writeFile` path can be specified optionally. If omitted, the `writeFile` path will be given the `readFile` path with the extension changed. The extension will be `aseprite` for `IMPORT` or `ppm` for `EXPORT`.
 
