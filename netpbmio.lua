@@ -821,6 +821,39 @@ local function writeFile(
     end
 end
 
+---@param str string
+---@param alt boolean
+---@return boolean
+local function parseCliBool(str, alt)
+    if str and #str > 0 then
+        local strLwr = str.lower(str)
+        if strLwr == "t" or strLwr == "true" or strLwr == "1" then
+            return true
+        elseif strLwr == "f" or strLwr == "false" or strLwr == "0" then
+            return false
+        end
+        return alt
+    end
+    return alt
+end
+
+---@param str string
+---@param lb integer
+---@param ub integer
+---@param alt integer
+---@param base integer
+---@return integer
+local function parseCliUint(str, lb, ub, alt, base)
+    if str and #str > 0 then
+        local num = tonumber(str, base)
+        if num then
+            return math.min(math.max(math.floor(math.abs(num) + 0.5), lb), ub)
+        end
+        return alt
+    end
+    return alt
+end
+
 if not uiAvailable then
     local params = app.params
     -- print("\nparams:")
@@ -936,46 +969,12 @@ if not uiAvailable then
             end
         end
 
-        local channelMax = defaults.channelMax
-        local channelMaxRequest = params["channelMax"]
-        if channelMaxRequest and #channelMaxRequest > 0 then
-            local channelMaxParsed = tonumber(channelMaxRequest, 10)
-            if channelMaxParsed then
-                channelMax = math.min(math.max(math.floor(math.abs(
-                    channelMaxParsed) + 0.5), 1), 255)
-            end
-        end
-
-        local pivot = defaults.pivot
-        local pivotRequest = params["pivot"] or params["threshold"]
-        if pivotRequest and #pivotRequest > 0 then
-            local pivotParsed = tonumber(pivotRequest, 10)
-            if pivotParsed then
-                pivot = math.min(math.max(math.floor(math.abs(
-                    pivotParsed) + 0.5), 1), 255)
-            end
-        end
-
-        local scale = defaults.scale
-        local scaleRequest = params["scale"]
-        if scaleRequest and #scaleRequest > 0 then
-            local scaleParsed = tonumber(scaleRequest, 10)
-            if scaleParsed then
-                scale = math.min(math.max(math.floor(math.abs(
-                    scaleParsed) + 0.5), 1), 10)
-            end
-        end
-
-        local usePixelAspect = defaults.usePixelAspect
-        local upaRequest = params["usePixelAspect"]
-        if upaRequest and #upaRequest > 0 then
-            upaRequest = string.lower(upaRequest)
-            if upaRequest == "f" or upaRequest == "false" then
-                usePixelAspect = false
-            elseif upaRequest == "t" or upaRequest == "true" then
-                usePixelAspect = true
-            end
-        end
+        local channelMax = parseCliUint(params["channelMax"], 1, 255,
+            defaults.channelMax, 10)
+        local pivot = parseCliUint(params["pivot"], 1, 255, defaults.pivot, 10)
+        local scale = parseCliUint(params["scale"], 1, 10, defaults.scale, 10)
+        local usePixelAspect = parseCliBool(params["usePixelAspect"],
+            defaults.usePixelAspect)
 
         writeFile(writeFilePath, readSprite, frIdcs, writeMode, channelMax,
             pivot, scale, usePixelAspect)
