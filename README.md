@@ -22,15 +22,19 @@ If an error message in Aseprite's console appears, check if the script folder is
 
 A hot key can be assigned to the script by going to `Edit > Keyboard Shortcuts`. The search input box in the top left of the shortcuts dialog can be used to locate the script by its file name. The dialog can be closed with `Alt+C`. The import button can be activated with `Alt+I`; export, with `Alt+E`.
 
-Import and export ignore alpha *completely*. (For example transparent red, `0x000000ff`, will not be corrected to opaque black, `0xff000000`.) I recommend that you set an opaque background layer if you want to avoid issues.
+Import and export ignore alpha *completely*. For example transparent red, `0x000000ff`, will not be corrected to opaque black, `0xff000000`. I recommend that you set an opaque background layer if you want to avoid issues.
 
-PNM file formats support neither layers nor frames. For that reason, a flattened copy of the sprite is made at the active frame.
+PNM file formats support neither layers nor frames. For that reason, a flattened copy of the sprite is made at the active frame (unless the script is called from the CLI, see below).
 
-When the color maximum is reduced, the script performs *no* dithering, unlike GIMP or Krita. Dither prior to export if you want the effect. 
+When the color maximum is reduced, the script performs *no* dithering, unlike GIMP or Krita. Dither prior to export if you want the effect. Channel contraction uses the formula `floor(value * (max / 255.0) + 0.5)`; expansion, `floor(value * (255.0 / max) + 0.5)`. This is equivalent to a signed, rather than an unsigned quantization. The difference can be illustrated with this [Desmos graph](https://www.desmos.com/calculator/8izpd3rfcj) or a comparison of gradients.
 
-Aseprite's definition of "luma" to convert to grayscale is used by both `pbm` and `pgm` exports. `pbm` grayscale values are then thresholded.
+![Quantize Comparison](quantizeCompare.png)
 
-This dialog's parser expects the header, image dimensions, max channel and pixel data to be separated by line breaks. In other words, don't expect one liner files to parse correctly.
+Unsigned quantization is in the middle row; signed is on the bottom.
+
+Aseprite's definition of "luma" to convert to grayscale is used by both `pbm` and `pgm` exports. For more info, I wrote a guide comparing grayscale conversion methods [here](https://steamcommunity.com/sharedfiles/filedetails/?id=3014911194). `pbm` grayscale values are then thresholded against a pivot, `128` by default. 
+
+This script's parser expects the header, image dimensions, max channel and pixel data to be separated by line breaks. In other words, don't expect one liner files to parse correctly.
 
 ## Example
 
@@ -106,7 +110,7 @@ B6 25 4F 97 1C 5A 89 24 69 84 26 6D
 89 24 69 97 1C 5A B6 25 4F DC 3A 3A
 ```
 
-The pixel in the top left corner can be seen as `220` for the red channel, `58` for the green and `58` for the blue. Or, in hexadecimal: `0xDC`, `0x3A`, `0x3A`.
+The pixel in the top left corner can be seen as `220` for the red channel, `58` for the green and `58` for the blue. Or, in hexadecimal: `0xDC`, `0x3A` and `0x3A`. The file header is still in human readable form: `0x50` `0x36` is `P3`, `0x39` `0x20` `0x31` `0x36` is `9 16` and `0x32` `0x35` `0x35` is `255`.
 
 ### PBM
 
@@ -148,11 +152,11 @@ FF FF FF FF
 
 Binary pbms pack 8 pixels of binary data into one byte, with extra padding depending on the image width.
 
-## Command Line Interface (CLI)
+## Command Line Interface
 
-Due to the relative slowness of these Lua scripts, it's recommended to use another graphics package to convert files to or from the PNM format in bulk. However, Aseprite does support calling scripts from the [command line](https://aseprite.org/docs/cli#script). This script has been updated to make use of that feature.
+Due to the relative slowness of Lua scripts, I recommend using another graphics package to convert files to or from the PNM format in bulk. However, Aseprite does support calling scripts from the [command line](https://aseprite.org/docs/cli#script) (CLI). This script has been updated to utilize that feature.
 
-The primary `-script-param` to call for this script is `action`, which may be either `IMPORT`, to convert from PNM, or `EXPORT`, to convert to PNM. The next important parameter is `readFile`, to be assigned a file path. A separate `writeFile` can optionally be specified. If omitted, the `writeFile` path will be provided the `readFile` path with the extension changed to `aseprite` for `IMPORT` or `ppm` for `EXPORT` `action`s.
+The primary `-script-param` to call is `action`, which may be either `IMPORT` -- to convert from PNM -- or `EXPORT` -- to convert to PNM. The next important parameter is `readFile`, which should be assigned a file path. A separate `writeFile` path can be specified optionally. If omitted, the `writeFile` path will be given the `readFile` path with the extension changed. The extension will be `aseprite` for `IMPORT` or `ppm` for `EXPORT`.
 
 For example,
 

@@ -170,7 +170,7 @@ local function readFile(importFilepath, colorMode)
     local isBinary = false
     local invert = false
     local channelMax = 255.0
-    local fromChnlSz = 255.0
+    local fromChnlMax = 255.0
     local stride = 1
     local spriteWidth = 1
     local spriteHeight = 1
@@ -243,7 +243,7 @@ local function readFile(importFilepath, colorMode)
                     local channelMaxPrs = tonumber(whTokens[3], 10)
                     if channelMaxPrs then
                         channelMax = min(max(floor(abs(channelMaxPrs) + 0.5), 1), 255)
-                        fromChnlSz = 255.0 / channelMax
+                        fromChnlMax = 255.0 / channelMax
                     end
                 end
             elseif includesChnlMax and channelMaxFound <= 0 then
@@ -251,7 +251,7 @@ local function readFile(importFilepath, colorMode)
                 local channelMaxPrs = tonumber(lc, 10)
                 if channelMaxPrs then
                     channelMax = min(max(floor(abs(channelMaxPrs) + 0.5), 1), 255)
-                    fromChnlSz = 255.0 / channelMax
+                    fromChnlMax = 255.0 / channelMax
                 end
             else
                 if isBinary then break end
@@ -344,9 +344,9 @@ local function readFile(importFilepath, colorMode)
         local pxItr = image:pixels()
         for pixel in pxItr do
             local k = i * 3
-            local r = floor(pxData[1 + k] * fromChnlSz + 0.5)
-            local g = floor(pxData[2 + k] * fromChnlSz + 0.5)
-            local b = floor(pxData[3 + k] * fromChnlSz + 0.5)
+            local r = floor(pxData[1 + k] * fromChnlMax + 0.5)
+            local g = floor(pxData[2 + k] * fromChnlMax + 0.5)
+            local b = floor(pxData[3 + k] * fromChnlMax + 0.5)
             pixel(0xff000000 | b << 0x10 | g << 0x08 | r)
             i = i + 1
         end
@@ -356,7 +356,7 @@ local function readFile(importFilepath, colorMode)
         for pixel in pxItr do
             i = i + 1
             local u = pxData[i]
-            local v = floor(u * fromChnlSz + 0.5)
+            local v = floor(u * fromChnlMax + 0.5)
             if invert then v = 255 ~ v end
             pixel(0xff000000 | v << 0x10 | v << 0x08 | v)
         end
