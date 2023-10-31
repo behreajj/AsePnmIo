@@ -30,7 +30,7 @@ When the color maximum is reduced, the script performs *no* dithering, unlike GI
 
 ![Quantize Comparison](quantizeCompare.png)
 
-Unsigned quantization is in the middle row; signed is on the bottom.
+Unsigned quantization is in the middle row; signed is on the bottom. If you prefer unsigned, see the color quantize dialog in [AsepriteAddons](https://github.com/behreajj/AsepriteAddons).
 
 Aseprite's definition of "luma" to convert to grayscale is used by both `pbm` and `pgm` exports. For more info, I wrote a guide comparing grayscale conversion methods [here](https://steamcommunity.com/sharedfiles/filedetails/?id=3014911194). `pbm` grayscale values are then thresholded against a pivot, `128` by default. 
 

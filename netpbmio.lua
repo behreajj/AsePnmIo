@@ -13,11 +13,38 @@ local defaults = {
     usePixelAspect = true,
 }
 
+---Define luminance function for converting RGB to gray.
+---Default to Aseprite's definition, even though better
+---alternatives exist.
+---@param r integer
+---@param g integer
+---@param b integer
+---@return integer
+local function lum(r, g, b)
+    return (r * 2126 + g * 7152 + b * 722) // 10000
+end
+
+---@param str string
+---@param alt boolean
+---@return boolean
+local function parseCliBool(str, alt)
+    if str and #str > 0 then
+        local strLwr = str.lower(str)
+        if strLwr == "t" or strLwr == "true" or strLwr == "1" then
+            return true
+        elseif strLwr == "f" or strLwr == "false" or strLwr == "0" then
+            return false
+        end
+        return alt
+    end
+    return alt
+end
+
 ---@param s string range string
 ---@param frameCount integer? number of frames
 ---@param offset integer? offset
 ---@return integer[]
-local function parseRangeString(s, frameCount, offset)
+local function parseCliRange(s, frameCount, offset)
     local offVerif = offset or 0
     local fcVerif = frameCount or 2147483647
 
@@ -82,15 +109,21 @@ local function parseRangeString(s, frameCount, offset)
     return arr
 end
 
----Define luminance function for converting RGB to gray.
----Default to Aseprite's definition, even though better
----alternatives exist.
----@param r integer
----@param g integer
----@param b integer
+---@param str string
+---@param lb integer
+---@param ub integer
+---@param alt integer
+---@param base integer
 ---@return integer
-local function lum(r, g, b)
-    return (r * 2126 + g * 7152 + b * 722) // 10000
+local function parseCliUint(str, lb, ub, alt, base)
+    if str and #str > 0 then
+        local num = tonumber(str, base)
+        if num then
+            return math.min(math.max(math.floor(math.abs(num) + 0.5), lb), ub)
+        end
+        return alt
+    end
+    return alt
 end
 
 ---@param importFilepath string
@@ -821,39 +854,6 @@ local function writeFile(
     end
 end
 
----@param str string
----@param alt boolean
----@return boolean
-local function parseCliBool(str, alt)
-    if str and #str > 0 then
-        local strLwr = str.lower(str)
-        if strLwr == "t" or strLwr == "true" or strLwr == "1" then
-            return true
-        elseif strLwr == "f" or strLwr == "false" or strLwr == "0" then
-            return false
-        end
-        return alt
-    end
-    return alt
-end
-
----@param str string
----@param lb integer
----@param ub integer
----@param alt integer
----@param base integer
----@return integer
-local function parseCliUint(str, lb, ub, alt, base)
-    if str and #str > 0 then
-        local num = tonumber(str, base)
-        if num then
-            return math.min(math.max(math.floor(math.abs(num) + 0.5), lb), ub)
-        end
-        return alt
-    end
-    return alt
-end
-
 if not uiAvailable then
     local params = app.params
     -- print("\nparams:")
@@ -950,7 +950,7 @@ if not uiAvailable then
                     frIdcs[i] = i
                 end
             else
-                frIdcs = parseRangeString(framesRequest, numFrames, 0)
+                frIdcs = parseCliRange(framesRequest, numFrames, 0)
             end
         else
             frIdcs[1] = 1
