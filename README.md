@@ -4,7 +4,7 @@
 
 This is a [PNM](https://en.wikipedia.org/wiki/Netpbm) import-export dialog for use with the [Aseprite](https://www.aseprite.org/) [scripting API](https://www.aseprite.org/docs/scripting/). The PNM family of image formats supported by this dialog are `pbm`, `pgm` and `ppm`.
 
-- `ppm` files support up to 256-bit per red, green and blue color channels. Alpha is not included. The maximum per each channel can be adjusted, effectively allowing for a reduced bit-depth image. For example, a max of `7` would be `(1<<3)-1` or `(2^3)-1`.
+- `ppm` files support up to 256-bit per red, green and blue color channels. Alpha is not included. The maximum per each channel can be adjusted.
 - `pgm` files support up to 256-bit per gray channel. Alpha is not included. The maximum per channel can be adjusted.
 - `pbm` files support either `1` or `0` per pixel. The format specifies that `1` is black while `0` is white. This dialog inverts this to match image conventions.
 
@@ -26,11 +26,11 @@ Import and export ignore alpha *completely*. For example transparent red, `0x000
 
 PNM file formats support neither layers nor frames. For that reason, a flattened copy of the sprite is made at the active frame (unless the script is called from the CLI, see below).
 
-When the color maximum is reduced, the script performs *no* dithering, unlike GIMP or Krita. Dither prior to export if you want the effect. Channel contraction uses the formula `floor(val * (mx / 255) + 0.5)`; expansion, `floor(val * (255 / mx) + 0.5)`. This is equivalent to a signed, rather than an unsigned quantization. The difference can be illustrated with this [Desmos graph](https://www.desmos.com/calculator/8izpd3rfcj) or a comparison of gradients.
+When the color maximum is reduced, the script performs *no* dithering, unlike GIMP or Krita. Channel contraction uses the formula `floor(val * (mx / 255) + 0.5)`; expansion, `floor(val * (255 / mx) + 0.5)`. This is equivalent to a signed, rather than an unsigned, quantization. The difference can be illustrated with this [Desmos graph](https://www.desmos.com/calculator/8izpd3rfcj) or a comparison of gradients.
 
 ![Quantize Comparison](quantizeCompare.png)
 
-Unsigned quantization is in the middle row; signed is on the bottom. If you prefer unsigned, see the color quantize dialog in [AsepriteAddons](https://github.com/behreajj/AsepriteAddons).
+Unsigned quantization is in the middle row; signed is on the bottom. If you prefer unsigned quantization, or require a dithering tool for one-bit or quantized color, see [AsepriteAddons](https://github.com/behreajj/AsepriteAddons).
 
 Aseprite's definition of "luma" to convert to grayscale is used by both `pbm` and `pgm` exports. For more info, I wrote a guide comparing grayscale conversion methods [here](https://steamcommunity.com/sharedfiles/filedetails/?id=3014911194). `pbm` grayscale values are then thresholded against a pivot, `128` by default. 
 
@@ -167,7 +167,7 @@ aseprite -b -script-param readFile="path\\to\\pnm" -script-param action=IMPORT -
 and
 
 ```
-aseprite -b -script-param readFile="path\\to\\img" -script-param writeFile="path\\to\\pnm" -script-param action=EXPORT -script-param writeMode=BINARY -script-param frames=all -script-param channelMax=7 -script-param scale=2 -script "path\\to\\lua"
+aseprite -b -script-param readFile="path\\to\\img" -script-param writeFile="path\\to\\pnm" -script-param action=EXPORT -script-param writeMode=BINARY -script-param frames=ALL -script-param channelMax=7 -script-param scale=2 -script "path\\to\\lua"
 ```
 
 One of the benefits of exporting via the CLI is that multiple frames can be exported. As seen above, the argument `all` is used. Alternatively, the string `1:3,7:9` uses a colon `:` to specify two ranges from 1 to 3 and from 7 to 9, separated by a comma, `,`.
@@ -178,4 +178,4 @@ To modify these scripts, see Aseprite's [API Reference](https://github.com/asepr
 
 ## Issues
 
-This script was tested in Aseprite version 1.2.40-x64 on Windows 10. Its user interface elements were tested with 100% screen scaling and 200% UI scaling. Please report issues in the issues section on Github. The script was compared with the import-export capabilities of [GIMP](https://www.gimp.org/) version 2.10.34 and [Krita](https://krita.org/) version 5.2.0. 
+This script was tested in Aseprite version 1.3.2 on Windows 10. Its user interface elements were tested with 100% screen scaling and 200% UI scaling. Please report issues in the issues section on Github. The script was compared with the import-export capabilities of [GIMP](https://www.gimp.org/) version 2.10.36 and [Krita](https://krita.org/) version 5.2.2. 

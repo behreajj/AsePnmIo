@@ -1,10 +1,10 @@
-local uiAvailable = app.isUIAvailable
+local uiAvailable <const> = app.isUIAvailable
 
-local fileTypes = { "pbm", "pgm", "ppm" }
-local writeModes = { "ASCII", "BINARY" }
-local colorModes = { "RGB", "GRAY", "INDEXED" }
+local fileTypes <const> = { "pbm", "pgm", "ppm" }
+local writeModes <const> = { "ASCII", "BINARY" }
+local colorModes <const> = { "RGB", "GRAY", "INDEXED" }
 
-local defaults = {
+local defaults <const> = {
     colorMode = "RGB",
     writeMode = "ASCII",
     channelMax = 255,
@@ -29,7 +29,7 @@ end
 ---@return boolean
 local function parseCliBool(str, alt)
     if str and #str > 0 then
-        local strLwr = str.lower(str)
+        local strLwr <const> = str.lower(str)
         if strLwr == "t" or strLwr == "true" or strLwr == "1" then
             return true
         elseif strLwr == "f" or strLwr == "false" or strLwr == "0" then
@@ -45,32 +45,32 @@ end
 ---@param offset integer? offset
 ---@return integer[]
 local function parseCliRange(s, frameCount, offset)
-    local offVerif = offset or 0
-    local fcVerif = frameCount or 2147483647
+    local offVerif <const> = offset or 0
+    local fcVerif <const> = frameCount or 2147483647
 
-    local strgmatch = string.gmatch
-    local min = math.min
-    local max = math.max
+    local strgmatch <const> = string.gmatch
+    local min <const> = math.min
+    local max <const> = math.max
 
     ---@type table<integer, boolean>
-    local uniqueDict = {}
+    local uniqueDict <const> = {}
 
     -- Parse string by comma.
     for token in strgmatch(s, "([^,]+)") do
         ---@type integer[]
-        local edges = {}
+        local edges <const> = {}
         local idxEdges = 0
 
         -- Parse string by colon.
         for subtoken in strgmatch(token, "[^:]+") do
-            local trial = tonumber(subtoken, 10)
+            local trial <const> = tonumber(subtoken, 10)
             if trial then
                 idxEdges = idxEdges + 1
                 edges[idxEdges] = trial - offVerif
             end
         end
 
-        local lenEdges = #edges
+        local lenEdges <const> = #edges
         if lenEdges > 1 then
             local origIdx = edges[1]
             local destIdx = edges[lenEdges]
@@ -96,7 +96,7 @@ local function parseCliRange(s, frameCount, offset)
             end
         elseif lenEdges > 0 then
             -- Filter out unique numbers if invalid, don't bother clamping.
-            local trial = edges[1]
+            local trial <const> = edges[1]
             if trial >= 1 and trial <= fcVerif then
                 uniqueDict[trial] = true
             end
@@ -104,7 +104,7 @@ local function parseCliRange(s, frameCount, offset)
     end
 
     ---@type integer[]
-    local arr = {}
+    local arr <const> = {}
     for idx, _ in pairs(uniqueDict) do arr[#arr + 1] = idx end
     return arr
 end
@@ -117,7 +117,7 @@ end
 ---@return integer
 local function parseCliUint(str, lb, ub, alt, base)
     if str and #str > 0 then
-        local num = tonumber(str, base)
+        local num <const> = tonumber(str, base)
         if num then
             return math.min(math.max(math.floor(math.abs(num) + 0.5), lb), ub)
         end
@@ -133,12 +133,12 @@ end
 ---@return Sprite|nil
 local function readFile(importFilepath, colorMode, dithering, toGray)
     -- Check for invalid file extension.
-    local filepathLower = string.lower(importFilepath)
-    local fileSysTools = app.fs
-    local fileExt = fileSysTools.fileExtension(filepathLower)
-    local extIsPbm = fileExt == "pbm"
-    local extIsPgm = fileExt == "pgm"
-    local extIsPpm = fileExt == "ppm"
+    local filepathLower <const> = string.lower(importFilepath)
+    local fileSysTools <const> = app.fs
+    local fileExt <const> = fileSysTools.fileExtension(filepathLower)
+    local extIsPbm <const> = fileExt == "pbm"
+    local extIsPgm <const> = fileExt == "pgm"
+    local extIsPpm <const> = fileExt == "ppm"
     if not (extIsPbm or extIsPgm or extIsPpm) then
         if uiAvailable then
             app.alert {
@@ -151,7 +151,7 @@ local function readFile(importFilepath, colorMode, dithering, toGray)
         return nil
     end
 
-    local asciiFile, err = io.open(importFilepath, "r")
+    local asciiFile <const>, err <const> = io.open(importFilepath, "r")
     if err ~= nil then
         if asciiFile then asciiFile:close() end
         if uiAvailable then
@@ -176,20 +176,21 @@ local function readFile(importFilepath, colorMode, dithering, toGray)
     end
 
     -- Cache functions to local when used in loop.
-    local abs = math.abs
-    local floor = math.floor
-    local max = math.max
-    local min = math.min
-    local strgmatch = string.gmatch
-    local strlower = string.lower
-    local strsub = string.sub
-    local strunpack = string.unpack
+    local abs <const> = math.abs
+    local floor <const> = math.floor
+    local max <const> = math.max
+    local min <const> = math.min
+    local strgmatch <const> = string.gmatch
+    local strlower <const> = string.lower
+    local strpack <const> = string.pack
+    local strsub <const> = string.sub
+    local strunpack <const> = string.unpack
 
     ---@type string[]
-    local comments = {}
+    local comments <const> = {}
 
     ---@type number[]
-    local pxData = {}
+    local pxData <const> = {}
 
     local headerFound = 0
     local channelMaxFound = 0
@@ -211,13 +212,13 @@ local function readFile(importFilepath, colorMode, dithering, toGray)
     local spriteHeight = 1
 
     local charCount = 0
-    local linesItr = asciiFile:lines("L")
+    local linesItr <const> = asciiFile:lines("L")
     for line in linesItr do
-        local lenLine = #line
+        local lenLine <const> = #line
         charCount = charCount + lenLine
         if lenLine > 0 then
-            local lc = strlower(line)
-            local twoChars = strsub(lc, 1, 2)
+            local lc <const> = strlower(line)
+            local twoChars <const> = strsub(lc, 1, 2)
             if strsub(line, 1, 1) == '#' then
                 comments[#comments + 1] = strsub(line, 1)
             elseif twoChars == "p1" then
@@ -251,7 +252,7 @@ local function readFile(importFilepath, colorMode, dithering, toGray)
                 whFound = charCount
 
                 ---@type string[]
-                local whTokens = {}
+                local whTokens <const> = {}
                 local lenWhTokens = 0
                 for token in strgmatch(line, "%S+") do
                     lenWhTokens = lenWhTokens + 1
@@ -259,7 +260,7 @@ local function readFile(importFilepath, colorMode, dithering, toGray)
                 end
 
                 if lenWhTokens > 0 then
-                    local wPrs = tonumber(whTokens[1], 10)
+                    local wPrs <const> = tonumber(whTokens[1], 10)
                     if wPrs then
                         spriteWidth = floor(abs(wPrs) + 0.5)
                         spriteHeight = spriteWidth
@@ -267,7 +268,7 @@ local function readFile(importFilepath, colorMode, dithering, toGray)
                 end
 
                 if lenWhTokens > 1 then
-                    local hPrs = tonumber(whTokens[2], 10)
+                    local hPrs <const> = tonumber(whTokens[2], 10)
                     if hPrs then
                         spriteHeight = floor(abs(hPrs) + 0.5)
                     end
@@ -275,7 +276,7 @@ local function readFile(importFilepath, colorMode, dithering, toGray)
 
                 if lenWhTokens > 2 then
                     channelMaxFound = charCount
-                    local channelMaxPrs = tonumber(whTokens[3], 10)
+                    local channelMaxPrs <const> = tonumber(whTokens[3], 10)
                     if channelMaxPrs then
                         channelMax = min(max(floor(abs(channelMaxPrs) + 0.5), 1), 255)
                         fromChnlMax = 255.0 / channelMax
@@ -283,7 +284,7 @@ local function readFile(importFilepath, colorMode, dithering, toGray)
                 end
             elseif includesChnlMax and channelMaxFound <= 0 then
                 channelMaxFound = charCount
-                local channelMaxPrs = tonumber(lc, 10)
+                local channelMaxPrs <const> = tonumber(lc, 10)
                 if channelMaxPrs then
                     channelMax = min(max(floor(abs(channelMaxPrs) + 0.5), 1), 255)
                     fromChnlMax = 255.0 / channelMax
@@ -291,7 +292,7 @@ local function readFile(importFilepath, colorMode, dithering, toGray)
             else
                 if isBinary then break end
                 for token in strgmatch(line, delimiter) do
-                    local num = tonumber(token, 10)
+                    local num <const> = tonumber(token, 10)
                     if num then pxData[#pxData + 1] = num end
                 end -- End of ASCII read loop.
             end     -- End of data chunk parse block.
@@ -317,17 +318,17 @@ local function readFile(importFilepath, colorMode, dithering, toGray)
         -- suffix of the file according to the flat length.
         local flatLen = spriteWidth * spriteHeight
         if isBinPbm then
-            local charsPerRow = math.ceil(spriteWidth / 8)
+            local charsPerRow <const> = math.ceil(spriteWidth / 8)
             flatLen = charsPerRow * spriteHeight
         end
-        local strideFlatLen = stride * flatLen
+        local strideFlatLen <const> = stride * flatLen
 
-        local binFile, _ = io.open(importFilepath, "rb")
+        local binFile <const>, _ <const> = io.open(importFilepath, "rb")
         if not binFile then return end
-        local allChars = binFile:read("a")
-        local dataBlock = strsub(allChars, -strideFlatLen)
+        local allChars <const> = binFile:read("a")
+        local dataBlock <const> = strsub(allChars, -strideFlatLen)
         for token in strgmatch(dataBlock, ".") do
-            local num = strunpack("B", token)
+            local num <const> = strunpack("B", token)
             -- print(strfmt("%02x", num))
             pxData[#pxData + 1] = num
         end
@@ -335,9 +336,9 @@ local function readFile(importFilepath, colorMode, dithering, toGray)
     end
 
     -- Create image and sprite specification.
-    local clampedSpriteWidth = min(max(spriteWidth, 1), 65535)
-    local clampedSpriteHeight = min(max(spriteHeight, 1), 65535)
-    local spriteSpec = ImageSpec {
+    local clampedSpriteWidth <const> = min(max(spriteWidth, 1), 65535)
+    local clampedSpriteHeight <const> = min(max(spriteHeight, 1), 65535)
+    local spriteSpec <const> = ImageSpec {
         width = clampedSpriteWidth,
         height = clampedSpriteHeight,
         colorMode = ColorMode.RGB,
@@ -347,58 +348,75 @@ local function readFile(importFilepath, colorMode, dithering, toGray)
 
     -- This precaution minimizes raising an Aseprite error that will
     -- halt the script.
-    local spriteFlatLen = clampedSpriteHeight * clampedSpriteWidth
-    local spriteStrideFlatLen = stride * spriteFlatLen
+    local spriteFlatLen <const> = clampedSpriteHeight * clampedSpriteWidth
+    local spriteStrideFlatLen <const> = stride * spriteFlatLen
     while #pxData < spriteStrideFlatLen do pxData[#pxData + 1] = 0 end
 
+    local rBlack <const> = 0
+    local gBlack <const> = 0
+    local bBlack <const> = 0
+
+    local rWhite <const> = 255
+    local gWhite <const> = 255
+    local bWhite <const> = 255
+
     -- Write to image based on file type.
-    local image = Image(spriteSpec)
+    local image <const> = Image(spriteSpec)
     if isBinPbm then
-        local charsPerRow = math.ceil(spriteWidth / 8)
-        local pxItr = image:pixels()
-        for pixel in pxItr do
-            local xSprite = pixel.x
-            local ySprite = pixel.y
+        local wBlack <const> = strpack("B B B B", rBlack, gBlack, bBlack, 255)
+        local wWhite <const> = strpack("B B B B", rWhite, gWhite, bWhite, 255)
+        local charsPerRow <const> = math.ceil(spriteWidth / 8)
 
-            local xChar = xSprite // 8
-            local xBit = xSprite % 8
+        ---@type string[]
+        local bwStrs <const> = {}
+        local i = 0
+        while i < spriteFlatLen do
+            local xSprite = i % clampedSpriteWidth
+            local ySprite = i // clampedSpriteWidth
 
-            local j = xChar + charsPerRow * ySprite
-            local char = pxData[1 + j]
-            local shift = 7 - xBit
-            local bit = (char >> shift) & 1
+            local xChar <const> = xSprite // 8
+            local xBit <const> = xSprite % 8
 
-            if bit == 0 then
-                pixel(0xffffffff)
-            else
-                pixel(0xff000000)
-            end
+            local j <const> = xChar + charsPerRow * ySprite
+            local char <const> = pxData[1 + j]
+            local shift <const> = 7 - xBit
+            local bit <const> = (char >> shift) & 1
+
+            i = i + 1
+            bwStrs[i] = bit == 0 and wWhite or wBlack
         end
+
+        image.bytes = table.concat(bwStrs)
     elseif channels3 then
+        ---@type string[]
+        local rgbStrs <const> = {}
         local i = 0
-        local pxItr = image:pixels()
-        for pixel in pxItr do
-            local k = i * 3
-            local r = floor(pxData[1 + k] * fromChnlMax + 0.5)
-            local g = floor(pxData[2 + k] * fromChnlMax + 0.5)
-            local b = floor(pxData[3 + k] * fromChnlMax + 0.5)
-            pixel(0xff000000 | b << 0x10 | g << 0x08 | r)
+        while i < spriteFlatLen do
+            local k <const> = i * 3
+            local r <const> = floor(pxData[1 + k] * fromChnlMax + 0.5)
+            local g <const> = floor(pxData[2 + k] * fromChnlMax + 0.5)
+            local b <const> = floor(pxData[3 + k] * fromChnlMax + 0.5)
+
             i = i + 1
+            rgbStrs[i] = strpack("B B B B", r, g, b, 255)
         end
+        image.bytes = table.concat(rgbStrs)
     else
+        ---@type string[]
+        local gryStrs <const> = {}
         local i = 0
-        local pxItr = image:pixels()
-        for pixel in pxItr do
+        while i < spriteFlatLen do
             i = i + 1
-            local u = pxData[i]
+            local u <const> = pxData[i]
             local v = floor(u * fromChnlMax + 0.5)
             if invert then v = 255 ~ v end
-            pixel(0xff000000 | v << 0x10 | v << 0x08 | v)
+            gryStrs[i] = strpack("B B B B", v, v, v, 255)
         end
+        image.bytes = table.concat(gryStrs)
     end
 
     -- Create the sprite and assign the image to the sprite's cel.
-    local sprite = Sprite(spriteSpec)
+    local sprite <const> = Sprite(spriteSpec)
     sprite.cels[1].image = image
 
     -- Name the sprite after the file name.
@@ -406,12 +424,12 @@ local function readFile(importFilepath, colorMode, dithering, toGray)
 
     -- Set the palette.
     if extIsPbm then
-        local palette = sprite.palettes[1]
-        app.transaction(function()
+        local palette <const> = sprite.palettes[1]
+        app.transaction("Set Palette", function()
             palette:resize(3)
             palette:setColor(0, Color { r = 0, g = 0, b = 0, a = 0 })
-            palette:setColor(1, Color { r = 0, g = 0, b = 0, a = 255 })
-            palette:setColor(2, Color { r = 255, g = 255, b = 255, a = 255 })
+            palette:setColor(1, Color { r = rBlack, g = gBlack, b = bBlack, a = 255 })
+            palette:setColor(2, Color { r = rWhite, g = gWhite, b = bWhite, a = 255 })
         end)
     else
         app.command.ColorQuantization { ui = false, maxColors = 256 }
@@ -439,8 +457,8 @@ local function readFile(importFilepath, colorMode, dithering, toGray)
     end
 
     -- Turn off onion skin loop through tag frames.
-    local docPrefs = app.preferences.document(sprite)
-    local onionSkinPrefs = docPrefs.onionskin
+    local docPrefs <const> = app.preferences.document(sprite)
+    local onionSkinPrefs <const> = docPrefs.onionskin
     onionSkinPrefs.loop_tag = false
 
     return sprite
@@ -464,15 +482,15 @@ local function writeFile(
     scale,
     usePixelAspect)
     -- Check for invalid file extension.
-    local fileSysTools = app.fs
-    local fileExt = fileSysTools.fileExtension(exportFilepath)
-    local filePathAndTitle = string.gsub(
+    local fileSysTools <const> = app.fs
+    local fileExt <const> = fileSysTools.fileExtension(exportFilepath)
+    local filePathAndTitle <const> = string.gsub(
         fileSysTools.filePathAndTitle(exportFilepath), "\\", "\\\\")
 
-    local fileExtLower = string.lower(fileExt)
-    local extIsPbm = fileExtLower == "pbm"
-    local extIsPgm = fileExtLower == "pgm"
-    local extIsPpm = fileExtLower == "ppm"
+    local fileExtLower <const> = string.lower(fileExt)
+    local extIsPbm <const> = fileExtLower == "pbm"
+    local extIsPgm <const> = fileExtLower == "pgm"
+    local extIsPpm <const> = fileExtLower == "ppm"
 
     if not (extIsPbm or extIsPgm or extIsPpm) then
         if uiAvailable then
@@ -489,28 +507,29 @@ local function writeFile(
     -- For the pbm file extension, black is associated with 1 or on,
     -- and white is associated with 0 or off. This is the opposite of
     -- image conventions.
-    local offTok = "1"
-    local onTok = "0"
+    local offTok <const> = "1"
+    local onTok <const> = "0"
 
     -- Unpack sprite data.
-    local palettes = activeSprite.palettes
-    local spriteSpec = activeSprite.spec
-    local wSprite = spriteSpec.width
-    local hSprite = spriteSpec.height
-    local colorMode = spriteSpec.colorMode
+    local palettes <const> = activeSprite.palettes
+    local lenPalettes <const> = #palettes
+    local spriteSpec <const> = activeSprite.spec
+    local wSprite <const> = spriteSpec.width
+    local hSprite <const> = spriteSpec.height
+    local colorMode <const> = spriteSpec.colorMode
 
     -- Process color mode.
-    local cmIsRgb = colorMode == ColorMode.RGB
-    local cmIsGry = colorMode == ColorMode.GRAY
-    local cmIsIdx = colorMode == ColorMode.INDEXED
+    local cmIsRgb <const> = colorMode == ColorMode.RGB
+    local cmIsGry <const> = colorMode == ColorMode.GRAY
+    local cmIsIdx <const> = colorMode == ColorMode.INDEXED
 
     -- Process mode.
-    local fmtIsBinary = writeMode == "BINARY"
-    local fmtIsAscii = writeMode == "ASCII"
+    local fmtIsBinary <const> = writeMode == "BINARY"
+    local fmtIsAscii <const> = writeMode == "ASCII"
 
     -- Process channel max.
-    local chnlMaxVerif = math.min(math.max(channelMax, 1), 255)
-    local toChnlMax = chnlMaxVerif / 255.0
+    local chnlMaxVerif <const> = math.min(math.max(channelMax, 1), 255)
+    local toChnlMax <const> = chnlMaxVerif / 255.0
     local frmtrStr = "%d"
     if fmtIsAscii then
         if chnlMaxVerif < 10 then
@@ -527,32 +546,32 @@ local function writeFile(
     local hScale = scale
     if usePixelAspect then
         -- Pixel ratio sizes are not validated by Aseprite.
-        local pxRatio = activeSprite.pixelRatio
-        local pxw = math.max(1, math.abs(pxRatio.width))
-        local pxh = math.max(1, math.abs(pxRatio.height))
+        local pxRatio <const> = activeSprite.pixelRatio
+        local pxw <const> = math.max(1, math.abs(pxRatio.width))
+        local pxh <const> = math.max(1, math.abs(pxRatio.height))
         wScale = wScale * pxw
         hScale = hScale * pxh
     end
-    local useResize = wScale ~= 1 or hScale ~= 1
-    local wSpriteScld = math.min(wSprite * wScale, 65535)
-    local hSpriteScld = math.min(hSprite * hScale, 65535)
-    local imageSizeStr = string.format(
+    local useResize <const> = wScale ~= 1 or hScale ~= 1
+    local wSpriteScld <const> = math.min(wSprite * wScale, 65535)
+    local hSpriteScld <const> = math.min(hSprite * hScale, 65535)
+    local imageSizeStr <const> = string.format(
         "%d %d",
         wSpriteScld, hSpriteScld)
 
     -- Supplied to image pixel method when looping
     -- by pixel row.
-    local rowRect = Rectangle(0, 0, wSpriteScld, 1)
+    local rowRect <const> = Rectangle(0, 0, wSpriteScld, 1)
 
     -- Cache global methods to local.
-    local floor = math.floor
-    local ceil = math.ceil
-    local strfmt = string.format
-    local strpack = string.pack
-    local strsub = string.sub
-    local strgsub = string.gsub
-    local tconcat = table.concat
-    local tinsert = table.insert
+    local floor <const> = math.floor
+    local ceil <const> = math.ceil
+    local strfmt <const> = string.format
+    local strpack <const> = string.pack
+    local strsub <const> = string.sub
+    local strgsub <const> = string.gsub
+    local tconcat <const> = table.concat
+    local tinsert <const> = table.insert
 
     -- For the binary format, the code supplied to io.open is different.
     -- The separators for columns and rows are not needed.
@@ -589,15 +608,15 @@ local function writeFile(
         if cmIsIdx then
             if fmtIsBinary then
                 writePixel = function(h, p)
-                    local c = p:getColor(h)
-                    return strfmt(rgbFrmtrStr,
-                        strpack("B", floor(c.red * toChnlMax + 0.5)),
-                        strpack("B", floor(c.green * toChnlMax + 0.5)),
-                        strpack("B", floor(c.blue * toChnlMax + 0.5)))
+                    local c <const> = p:getColor(h)
+                    return strpack("B B B",
+                        floor(c.red * toChnlMax + 0.5),
+                        floor(c.green * toChnlMax + 0.5),
+                        floor(c.blue * toChnlMax + 0.5))
                 end
             else
                 writePixel = function(h, p)
-                    local c = p:getColor(h)
+                    local c <const> = p:getColor(h)
                     return strfmt(rgbFrmtrStr,
                         floor(c.red * toChnlMax + 0.5),
                         floor(c.green * toChnlMax + 0.5),
@@ -607,13 +626,12 @@ local function writeFile(
         elseif cmIsGry then
             if fmtIsBinary then
                 writePixel = function(h)
-                    local vc = strpack("B", floor(
-                        (h & 0xff) * toChnlMax + 0.5))
-                    return strfmt(rgbFrmtrStr, vc, vc, vc)
+                    local v <const> = floor((h & 0xff) * toChnlMax + 0.5)
+                    return strpack("B", v, v, v)
                 end
             else
                 writePixel = function(h)
-                    local v = floor((h & 0xff) * toChnlMax + 0.5)
+                    local v <const> = floor((h & 0xff) * toChnlMax + 0.5)
                     return strfmt(rgbFrmtrStr, v, v, v)
                 end
             end
@@ -621,10 +639,10 @@ local function writeFile(
             -- Default to RGB color mode.
             if fmtIsBinary then
                 writePixel = function(h)
-                    return strfmt(rgbFrmtrStr,
-                        strpack("B", floor((h & 0xff) * toChnlMax + 0.5)),
-                        strpack("B", floor((h >> 0x08 & 0xff) * toChnlMax + 0.5)),
-                        strpack("B", floor((h >> 0x10 & 0xff) * toChnlMax + 0.5)))
+                    return strpack("B B B",
+                        floor((h & 0xff) * toChnlMax + 0.5),
+                        floor((h >> 0x08 & 0xff) * toChnlMax + 0.5),
+                        floor((h >> 0x10 & 0xff) * toChnlMax + 0.5))
                 end
             else
                 writePixel = function(h)
@@ -651,13 +669,13 @@ local function writeFile(
         if cmIsIdx then
             if fmtIsBinary then
                 writePixel = function(h, p)
-                    local c = p:getColor(h)
+                    local c <const> = p:getColor(h)
                     return strpack("B", floor(lum(
                         c.red, c.green, c.blue) * toChnlMax + 0.5))
                 end
             else
                 writePixel = function(h, p)
-                    local c = p:getColor(h)
+                    local c <const> = p:getColor(h)
                     return strfmt(frmtrStr, floor(lum(
                         c.red, c.green, c.blue) * toChnlMax + 0.5))
                 end
@@ -713,7 +731,7 @@ local function writeFile(
             end
         else
             writePixel = function(h, p)
-                local c = p:getColor(h)
+                local c <const> = p:getColor(h)
                 if lum(c.red, c.green, c.blue) < pivot then
                     return offTok
                 end
@@ -726,29 +744,28 @@ local function writeFile(
     -- key and its string representation is the value. (For multiple frames,
     -- initialize this dictionary outside the frames loop.)
     ---@type table<integer, string>
-    local hexToStr = {}
+    local hexToStr <const> = {}
 
-    local lenFrIdcs = #frIdcs
+    local lenFrIdcs <const> = #frIdcs
     local h = 0
     while h < lenFrIdcs do
         h = h + 1
-        local frIdx = frIdcs[h]
+        local frIdx <const> = frIdcs[h]
 
         -- In rare cases, e.g., a sprite opened from a sequence of indexed
         -- color mode files, there may be multiple palettes in the sprite.
         local paletteIdx = frIdx
-        local lenPalettes = #palettes
         if paletteIdx > lenPalettes then paletteIdx = 1 end
-        local palette = palettes[paletteIdx]
+        local palette <const> = palettes[paletteIdx]
 
         -- Blit the sprite composite onto a new image.
-        local trgImage = Image(spriteSpec)
+        local trgImage <const> = Image(spriteSpec)
         trgImage:drawSprite(activeSprite, frIdx)
-        local trgPxItr = trgImage:pixels()
+        local trgPxItr <const> = trgImage:pixels()
 
         -- Convert pixels to strings.
         for pixel in trgPxItr do
-            local hex = pixel()
+            local hex <const> = pixel()
             if not hexToStr[hex] then
                 hexToStr[hex] = writePixel(hex, palette)
             end
@@ -761,13 +778,13 @@ local function writeFile(
 
         -- Concatenate pixels into  columns, then rows.
         ---@type string[]
-        local rowStrs = {}
+        local rowStrs <const> = {}
         local j = 0
         while j < hSpriteScld do
             ---@type string[]
-            local colStrs = {}
+            local colStrs <const> = {}
             rowRect.y = j
-            local rowItr = trgImage:pixels(rowRect)
+            local rowItr <const> = trgImage:pixels(rowRect)
             for rowPixel in rowItr do
                 colStrs[#colStrs + 1] = hexToStr[rowPixel()]
             end
@@ -781,7 +798,7 @@ local function writeFile(
             frFilePath = strfmt("%s_%03d.%s", filePathAndTitle, frIdx, fileExt)
         end
 
-        local file, err = io.open(frFilePath, writerType)
+        local file <const>, err <const> = io.open(frFilePath, writerType)
         if err ~= nil then
             if file then file:close() end
             if uiAvailable then
@@ -813,22 +830,22 @@ local function writeFile(
             -- end of each row to fill a whole byte."
 
             ---@type string[]
-            local charStrs = {}
-            local lenRows = #rowStrs
+            local charStrs <const> = {}
+            local lenRows <const> = #rowStrs
             local k = 0
             while k < lenRows do
                 k = k + 1
-                local rowStr = rowStrs[k]
-                local lenRowStr = #rowStr
-                local lenRowChars = ceil(lenRowStr / 8)
+                local rowStr <const> = rowStrs[k]
+                local lenRowStr <const> = #rowStr
+                local lenRowChars <const> = ceil(lenRowStr / 8)
 
                 local m = 0
                 while m < lenRowChars do
-                    local idxOrig = 1 + m * 8
-                    local idxDest = idxOrig + 7
+                    local idxOrig <const> = 1 + m * 8
+                    local idxDest <const> = idxOrig + 7
                     local strSeg = strsub(rowStr, idxOrig, idxDest)
                     while #strSeg < 8 do strSeg = strSeg .. offTok end
-                    local numSeg = tonumber(strSeg, 2)
+                    local numSeg <const> = tonumber(strSeg, 2)
                     charStrs[#charStrs + 1] = strpack("B", numSeg)
                     m = m + 1
                 end
@@ -840,7 +857,7 @@ local function writeFile(
         end
 
         ---@type string[]
-        local chunks = { headerStr, imageSizeStr, imgDataStr }
+        local chunks <const> = { headerStr, imageSizeStr, imgDataStr }
         if not extIsPbm then
             tinsert(chunks, 3, chnlMaxStr)
         end
@@ -855,7 +872,7 @@ local function writeFile(
 end
 
 if not uiAvailable then
-    local params = app.params
+    local params <const> = app.params
     -- print("\nparams:")
     -- for k, v in pairs(params) do
     --     print(string.format("%s: %s", k, v))
@@ -869,7 +886,7 @@ if not uiAvailable then
         return
     end
 
-    local readFilePath = params["readFile"] or params["file"]
+    local readFilePath <const> = params["readFile"] or params["file"]
     if not readFilePath or #readFilePath < 1 then
         print("Error: Parameter \"readFile\" requires an argument.")
         return
@@ -910,18 +927,19 @@ if not uiAvailable then
         end
 
         local dithering = "none"
-        local ditherRequest = params["dithering"]
+        local ditherRequest <const> = params["dithering"]
         if ditherRequest and #ditherRequest > 0 then
             dithering = string.lower(ditherRequest)
         end
 
         local toGray = "default"
-        local toGrayRequest = params["toGray"]
+        local toGrayRequest <const> = params["toGray"]
         if toGrayRequest and #toGrayRequest > 0 then
             toGray = string.lower(toGrayRequest)
         end
 
-        local sprite = readFile(readFilePath, colorMode, dithering, toGray)
+        local sprite <const> = readFile(readFilePath, colorMode, dithering,
+            toGray)
         if sprite then
             sprite:saveAs(writeFilePath)
             print(string.format("Wrote file to %s .",
@@ -931,7 +949,7 @@ if not uiAvailable then
                 string.gsub(writeFilePath, "\\+", "\\")))
         end
     elseif action == "EXPORT" then
-        local readSprite = Sprite { fromFile = readFilePath }
+        local readSprite <const> = Sprite { fromFile = readFilePath }
         if not readSprite then
             print("Error: File could not be loaded to sprite.")
             return
@@ -942,7 +960,7 @@ if not uiAvailable then
         local framesRequest = params["frames"]
         if framesRequest and #framesRequest > 0 then
             framesRequest = string.upper(framesRequest)
-            local numFrames = #readSprite.frames
+            local numFrames <const> = #readSprite.frames
             if framesRequest == "ALL" then
                 local i = 0
                 while i < numFrames do
@@ -969,11 +987,13 @@ if not uiAvailable then
             end
         end
 
-        local channelMax = parseCliUint(params["channelMax"], 1, 255,
+        local channelMax <const> = parseCliUint(params["channelMax"], 1, 255,
             defaults.channelMax, 10)
-        local pivot = parseCliUint(params["pivot"], 1, 255, defaults.pivot, 10)
-        local scale = parseCliUint(params["scale"], 1, 10, defaults.scale, 10)
-        local usePixelAspect = parseCliBool(params["usePixelAspect"],
+        local pivot <const> = parseCliUint(params["pivot"], 1, 255,
+            defaults.pivot, 10)
+        local scale <const> = parseCliUint(params["scale"], 1, 10,
+            defaults.scale, 10)
+        local usePixelAspect <const> = parseCliBool(params["usePixelAspect"],
             defaults.usePixelAspect)
 
         writeFile(writeFilePath, readSprite, frIdcs, writeMode, channelMax,
@@ -985,7 +1005,7 @@ if not uiAvailable then
     return
 end
 
-local dlg = Dialog { title = "PNM Import Export" }
+local dlg <const> = Dialog { title = "PNM Import Export" }
 
 dlg:combobox {
     id = "colorMode",
@@ -1008,13 +1028,13 @@ dlg:file {
 dlg:newrow { always = false }
 
 dlg:button {
-    id = "import",
+    id = "importButton",
     text = "&IMPORT",
     focus = false,
     onclick = function()
         -- Check for invalid file path.
-        local args = dlg.data
-        local importFilepath = args.importFilepath --[[@as string]]
+        local args <const> = dlg.data
+        local importFilepath <const> = args.importFilepath --[[@as string]]
         if (not importFilepath) or #importFilepath < 1 then
             app.alert {
                 title = "Error",
@@ -1024,7 +1044,7 @@ dlg:button {
         end
 
         -- Preserve fore- and background colors.
-        local fgc = app.fgColor
+        local fgc <const> = app.fgColor
         app.fgColor = Color {
             r = fgc.red,
             g = fgc.green,
@@ -1033,7 +1053,7 @@ dlg:button {
         }
 
         app.command.SwitchColors()
-        local bgc = app.fgColor
+        local bgc <const> = app.fgColor
         app.fgColor = Color {
             r = bgc.red,
             g = bgc.green,
@@ -1042,8 +1062,10 @@ dlg:button {
         }
         app.command.SwitchColors()
 
-        local colorMode = args.colorMode or defaults.colorMode --[[@as string]]
-        local sprite = readFile(importFilepath, colorMode, "none", "default")
+        local colorMode <const> = args.colorMode
+            or defaults.colorMode --[[@as string]]
+        local sprite <const> = readFile(importFilepath, colorMode, "none",
+            "default")
 
         if sprite then
             app.command.Zoom { action = "set", percentage = 100 }
@@ -1116,12 +1138,11 @@ dlg:file {
 dlg:newrow { always = false }
 
 dlg:button {
-    id = "export",
-    text = "&EXPORT",
+    id = "exportButton",
+    text = "E&XPORT",
     focus = false,
     onclick = function()
-        ---@diagnostic disable-next-line: deprecated
-        local activeSprite = app.activeSprite
+        local activeSprite <const> = app.sprite
         if not activeSprite then
             app.alert {
                 title = "Error",
@@ -1130,8 +1151,7 @@ dlg:button {
             return
         end
 
-        ---@diagnostic disable-next-line: deprecated
-        local activeFrame = app.activeFrame
+        local activeFrame <const> = app.frame
         if not activeFrame then
             app.alert {
                 title = "Error",
@@ -1141,8 +1161,8 @@ dlg:button {
         end
 
         -- Check for invalid file path.
-        local args = dlg.data
-        local exportFilepath = args.exportFilepath --[[@as string]]
+        local args <const> = dlg.data
+        local exportFilepath <const> = args.exportFilepath --[[@as string]]
         if (not exportFilepath) or #exportFilepath < 1 then
             app.alert {
                 title = "Error",
@@ -1152,15 +1172,15 @@ dlg:button {
         end
 
         -- Unpack other arguments.
-        local writeMode = args.writeMode
+        local writeMode <const> = args.writeMode
             or defaults.writeMode --[[@as string]]
-        local channelMax = args.channelMax
+        local channelMax <const> = args.channelMax
             or defaults.channelMax --[[@as integer]]
-        local pivot = args.pivot
+        local pivot <const> = args.pivot
             or defaults.pivot --[[@as integer]]
-        local scale = args.scale
+        local scale <const> = args.scale
             or defaults.scale --[[@as integer]]
-        local usePixelAspect = args.usePixelAspect --[[@as boolean]]
+        local usePixelAspect <const> = args.usePixelAspect --[[@as boolean]]
 
         writeFile(exportFilepath, activeSprite, { activeFrame.frameNumber },
             writeMode, channelMax, pivot, scale, usePixelAspect)
@@ -1183,4 +1203,7 @@ dlg:button {
     end
 }
 
-dlg:show { wait = false }
+dlg:show {
+    autoscrollbars = true,
+    wait = false
+}

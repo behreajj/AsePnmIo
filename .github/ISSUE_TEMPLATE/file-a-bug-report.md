@@ -11,7 +11,7 @@ assignees: ''
 For example, Windows 10.
 
 **Aseprite version**
-The minimum supported version is 1.2.40.
+The minimum supported version is 1.3.2.
 
 **CLI or UI**
 Was the script called from Aseprite's graphic user interface or from the command line?
