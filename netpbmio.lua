@@ -1045,10 +1045,8 @@ dlg:button {
 
         -- Prevent uncommitted selection transformation (drop pixels) from
         -- raising an error.
-        app.transaction("Commit Mask", function()
-            app.command.InvertMask()
-            app.command.InvertMask()
-        end)
+        app.command.InvertMask()
+        app.command.InvertMask()
 
         -- Preserve fore- and background colors.
         local fgc <const> = app.fgColor
@@ -1180,10 +1178,8 @@ dlg:button {
 
         -- Prevent uncommitted selection transformation (drop pixels) from
         -- raising an error.
-        app.transaction("Commit Mask", function()
-            app.command.InvertMask()
-            app.command.InvertMask()
-        end)
+        app.command.InvertMask()
+        app.command.InvertMask()
 
         -- Unpack other arguments.
         local writeMode <const> = args.writeMode
