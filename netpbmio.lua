@@ -457,9 +457,23 @@ local function readFile(importFilepath, colorMode, dithering, toGray)
     end
 
     -- Turn off onion skin loop through tag frames.
-    local docPrefs <const> = app.preferences.document(sprite)
-    local onionSkinPrefs <const> = docPrefs.onionskin
-    onionSkinPrefs.loop_tag = false
+    local appPrefs <const> = app.preferences
+    if appPrefs then
+        local docPrefs <const> = appPrefs.document(sprite)
+        if docPrefs then
+            local onionSkinPrefs <const> = docPrefs.onionskin
+            if onionSkinPrefs then
+                onionSkinPrefs.loop_tag = false
+            end
+
+            local thumbPrefs <const> = docPrefs.thumbnails
+            if thumbPrefs then
+                thumbPrefs.enabled = true
+                thumbPrefs.zoom = 1
+                thumbPrefs.overlay_enabled = true
+            end
+        end
+    end
 
     return sprite
 end
@@ -1041,6 +1055,16 @@ dlg:button {
                 text = "Empty file path."
             }
             return
+        end
+
+        -- As a precaution against crashes, do not allow slices UI interface
+        -- to be active.
+        local appTool <const> = app.tool
+        if appTool then
+            local toolName <const> = appTool.id
+            if toolName == "slice" then
+                app.tool = "hand"
+            end
         end
 
         -- Prevent uncommitted selection transformation (drop pixels) from
