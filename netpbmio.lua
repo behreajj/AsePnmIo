@@ -641,7 +641,7 @@ local function writeFile(
             if fmtIsBinary then
                 writePixel = function(h)
                     local v <const> = floor((h & 0xff) * toChnlMax + 0.5)
-                    return strpack("B", v, v, v)
+                    return strpack("B B B", v, v, v)
                 end
             else
                 writePixel = function(h)
