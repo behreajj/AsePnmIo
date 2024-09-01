@@ -3,11 +3,14 @@ local uiAvailable <const> = app.isUIAvailable
 local fileTypes <const> = { "pbm", "pgm", "ppm" }
 local writeModes <const> = { "ASCII", "BINARY" }
 local colorModes <const> = { "RGB", "GRAY", "INDEXED" }
+local units <const> = { "BITS", "INTEGERS" }
 
 local defaults <const> = {
     colorMode = "RGB",
     writeMode = "ASCII",
     channelMax = 255,
+    bitDepth = 8,
+    unitsInput = "INTEGERS",
     pivot = 128,
     scale = 1,
     usePixelAspect = true,
@@ -1116,12 +1119,52 @@ dlg:combobox {
 
 dlg:newrow { always = false }
 
+dlg:combobox {
+    id = "unitsInput",
+    label = "Units:",
+    option = defaults.unitsInput,
+    options = units,
+    focus = false,
+    onchange = function()
+        local args <const> = dlg.data
+
+        local unit <const> = args.unitsInput --[[@as string]]
+        local isbit <const> = unit == "BITS"
+        local isint <const> = unit == "INTEGERS"
+
+        dlg:modify { id = "bitDepth", visible = isbit }
+        dlg:modify { id = "channelMax", visible = isint }
+    end
+}
+
+dlg:newrow { always = false }
+
 dlg:slider {
     id = "channelMax",
     label = "Channel:",
     min = 1,
     max = 255,
-    value = defaults.channelMax
+    value = defaults.channelMax,
+    focus = false,
+    visible = defaults.unitsInput == "INTEGERS"
+}
+
+dlg:newrow { always = false }
+
+dlg:slider {
+    id = "bitDepth",
+    label = "Channel:",
+    min = 1,
+    max = 8,
+    value = defaults.bitDepth,
+    focus = false,
+    visible = defaults.unitsInput == "BITS",
+    onchange = function()
+        local args <const> = dlg.data
+        local bd <const> = args.bitDepth --[[@as integer]]
+        local mx <const> = (1 << bd) - 1
+        dlg:modify { id = "channelMax", value = mx }
+    end
 }
 
 dlg:newrow { always = false }
