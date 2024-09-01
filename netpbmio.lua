@@ -1129,11 +1129,17 @@ dlg:combobox {
         local args <const> = dlg.data
 
         local unit <const> = args.unitsInput --[[@as string]]
-        local isbit <const> = unit == "BITS"
-        local isint <const> = unit == "INTEGERS"
+        local isBit <const> = unit == "BITS"
+        local isInt <const> = unit == "INTEGERS"
 
-        dlg:modify { id = "bitDepth", visible = isbit }
-        dlg:modify { id = "channelMax", visible = isint }
+        dlg:modify { id = "channelMax", visible = isInt }
+        dlg:modify { id = "bitDepth", visible = isBit }
+
+        if isBit then
+            local bd <const> = args.bitDepth --[[@as integer]]
+            local mx <const> = (1 << bd) - 1
+            dlg:modify { id = "channelMax", value = mx }
+        end
     end
 }
 
