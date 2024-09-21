@@ -873,8 +873,11 @@ local function writeFile(
             imgDataStr = tconcat(rowStrs, rowSep)
         end
 
+        -- When an ASCII file does not have an extra blank line at the end,
+        -- the bottom right pixel will appear incorrect in
+        -- Photopea and Irfanview.
         ---@type string[]
-        local chunks <const> = { headerStr, imageSizeStr, imgDataStr }
+        local chunks <const> = { headerStr, imageSizeStr, imgDataStr, "" }
         if not extIsPbm then
             tinsert(chunks, 3, chnlMaxStr)
         end
