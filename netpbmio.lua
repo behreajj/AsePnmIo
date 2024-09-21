@@ -876,8 +876,8 @@ local function writeFile(
         ---@type string[]
         local chunks <const> = { headerStr, imageSizeStr, imgDataStr }
 
-        -- When an ASCII file does not have an extra blank line at the end,
-        -- the bottom right pixel will appear incorrect in
+        -- When an ASCII file does not have an extra blank line or white space
+        -- at the end, the bottom right pixel will appear incorrect in
         -- Photopea and Irfanview.
         if fmtIsAscii then
             table.insert(chunks, "")
@@ -1078,12 +1078,6 @@ dlg:button {
             end
         end
 
-        -- Just getting the tool above seems to suffice.
-        -- Prevent uncommitted selection transformation (drop pixels) from
-        -- raising an error.
-        -- app.command.InvertMask()
-        -- app.command.InvertMask()
-
         -- Preserve fore- and background colors.
         local fgc <const> = app.fgColor
         app.fgColor = Color {
@@ -1258,10 +1252,13 @@ dlg:button {
             return
         end
 
-        -- Prevent uncommitted selection transformation (drop pixels) from
-        -- raising an error.
-        app.command.InvertMask()
-        app.command.InvertMask()
+        local appTool <const> = app.tool
+        if appTool then
+            local toolName <const> = appTool.id
+            if toolName == "slice" then
+                app.tool = "hand"
+            end
+        end
 
         -- Unpack other arguments.
         local writeMode <const> = args.writeMode
