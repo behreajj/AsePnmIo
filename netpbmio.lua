@@ -435,7 +435,11 @@ local function readFile(importFilepath, colorMode, dithering, toGray)
             palette:setColor(2, Color { r = rWhite, g = gWhite, b = bWhite, a = 255 })
         end)
     else
-        app.command.ColorQuantization { ui = false, maxColors = 256 }
+        app.command.ColorQuantization {
+            ui = false,
+            maxColors = 256,
+            withAlpha = true,
+        }
     end
 
     -- Set sprite color mode to user preference if not RGB. Internally, the
@@ -446,6 +450,8 @@ local function readFile(importFilepath, colorMode, dithering, toGray)
             app.command.ChangePixelFormat {
                 ui = false,
                 format = "indexed",
+                fitCriteria = "cielab",
+                rgbmap = "octree",
                 ---@diagnostic disable-next-line: assign-type-mismatch
                 dithering = dithering
             }

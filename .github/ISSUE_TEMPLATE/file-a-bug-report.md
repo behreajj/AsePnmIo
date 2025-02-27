@@ -8,10 +8,10 @@ assignees: ''
 ---
 
 **Operating System**
-For example, Windows 10.
+For example, Windows 11.
 
 **Aseprite version**
-The minimum supported version is 1.3.2.
+The minimum supported version is 1.3.13.
 
 **CLI or UI**
 Was the script called from Aseprite's graphic user interface or from the command line?
