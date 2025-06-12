@@ -342,10 +342,8 @@ local function readFile(importFilepath, colorMode, dithering, toGray)
     end
 
     -- Create image and sprite specification.
-
-    -- TODO: Shouldn't this use signed short max, not unsigned?
-    local clampedSpriteWidth <const> = min(max(spriteWidth, 1), 65535)
-    local clampedSpriteHeight <const> = min(max(spriteHeight, 1), 65535)
+    local clampedSpriteWidth <const> = min(max(spriteWidth, 1), 32767)
+    local clampedSpriteHeight <const> = min(max(spriteHeight, 1), 32767)
     local spriteSpec <const> = ImageSpec {
         width = clampedSpriteWidth,
         height = clampedSpriteHeight,
@@ -581,8 +579,8 @@ local function writeFile(
         hScale = hScale * pxh
     end
     local useResize <const> = wScale ~= 1 or hScale ~= 1
-    local wSpriteScld <const> = math.min(wSprite * wScale, 65535)
-    local hSpriteScld <const> = math.min(hSprite * hScale, 65535)
+    local wSpriteScld <const> = math.min(wSprite * wScale, 32767)
+    local hSpriteScld <const> = math.min(hSprite * hScale, 32767)
     local imageSizeStr <const> = string.format(
         "%d %d",
         wSpriteScld, hSpriteScld)
