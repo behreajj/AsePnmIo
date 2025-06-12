@@ -6,6 +6,7 @@ local colorModes <const> = { "RGB", "GRAY", "INDEXED" }
 local units <const> = { "BITS", "INTEGERS" }
 
 local defaults <const> = {
+    -- TODO: Option to premultiply alpha on export?
     colorMode = "RGB",
     writeMode = "ASCII",
     channelMax = 255,
@@ -43,6 +44,8 @@ local function parseCliBool(str, alt)
     return alt
 end
 
+---Runs of consecutive numbers are signaled with a colon, ':'.
+---Otherwise, numbers are separated by a comma, ','.
 ---@param s string range string
 ---@param frameCount integer? number of frames
 ---@param offset integer? offset
@@ -339,6 +342,8 @@ local function readFile(importFilepath, colorMode, dithering, toGray)
     end
 
     -- Create image and sprite specification.
+
+    -- TODO: Shouldn't this use signed short max, not unsigned?
     local clampedSpriteWidth <const> = min(max(spriteWidth, 1), 65535)
     local clampedSpriteHeight <const> = min(max(spriteHeight, 1), 65535)
     local spriteSpec <const> = ImageSpec {
@@ -786,6 +791,7 @@ local function writeFile(
         trgImage:drawSprite(activeSprite, frIdx)
         local trgPxItr <const> = trgImage:pixels()
 
+        -- TODO: Switch to string bytes approach.
         -- Convert pixels to strings.
         for pixel in trgPxItr do
             local hex <const> = pixel()
@@ -1043,7 +1049,8 @@ dlg:combobox {
     label = "Color:",
     option = defaults.colorMode,
     options = colorModes,
-    focus = false
+    focus = false,
+    hexpand = false,
 }
 
 dlg:newrow { always = false }
@@ -1052,6 +1059,7 @@ dlg:file {
     id = "importFilepath",
     label = "Open:",
     filetypes = fileTypes,
+    basepath = app.fs.userDocsPath,
     open = true,
     focus = true
 }
@@ -1122,7 +1130,8 @@ dlg:combobox {
     label = "Format:",
     option = defaults.writeMode,
     options = writeModes,
-    focus = false
+    focus = false,
+    hexpand = false,
 }
 
 dlg:newrow { always = false }
@@ -1133,6 +1142,7 @@ dlg:combobox {
     option = defaults.unitsInput,
     options = units,
     focus = false,
+    hexpand = false,
     onchange = function()
         local args <const> = dlg.data
 
@@ -1209,7 +1219,8 @@ dlg:check {
     label = "Apply:",
     text = "Pi&xel Aspect",
     selected = defaults.usePixelAspect,
-    visible = true
+    visible = true,
+    hexpand = false,
 }
 
 dlg:newrow { always = false }
@@ -1218,6 +1229,7 @@ dlg:file {
     id = "exportFilepath",
     label = "Save:",
     filetypes = fileTypes,
+    basepath = app.fs.userDocsPath,
     save = true,
     focus = false
 }
