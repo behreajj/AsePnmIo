@@ -14,6 +14,7 @@ local defaults <const> = {
     unitsInput = "INTEGERS",
     pivot = 128,
     scale = 1,
+    maxScale = 16,
     usePixelAspect = true,
 }
 
@@ -1216,7 +1217,7 @@ dlg:slider {
     id = "scale",
     label = "Scale:",
     min = 1,
-    max = 10,
+    max = defaults.maxScale,
     value = defaults.scale
 }
 
