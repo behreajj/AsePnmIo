@@ -1155,6 +1155,10 @@ dlg:combobox {
             local bd <const> = args.bitDepth --[[@as integer]]
             local mx <const> = (1 << bd) - 1
             dlg:modify { id = "channelMax", value = mx }
+        elseif isInt then
+            local channelMax <const> = args.channelMax
+            local bd <const> = math.floor(math.log(channelMax + 1, 2))
+            dlg:modify { id = "bitDepth", value = bd }
         end
     end
 }
@@ -1168,7 +1172,13 @@ dlg:slider {
     max = 255,
     value = defaults.channelMax,
     focus = false,
-    visible = defaults.unitsInput == "INTEGERS"
+    visible = defaults.unitsInput == "INTEGERS",
+    onchange = function()
+        local args <const> = dlg.data
+        local channelMax <const> = args.channelMax
+        local bd <const> = math.floor(math.log(channelMax + 1, 2))
+        dlg:modify { id = "bitDepth", value = bd }
+    end
 }
 
 dlg:newrow { always = false }
